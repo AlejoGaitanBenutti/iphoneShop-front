@@ -1,8 +1,6 @@
-
+// assets/theme/theme-rtl.js
 import { createTheme } from "@mui/material/styles";
-// import Fade from "@mui/material/Fade";
 
-// Material Dashboard 2 React base styles
 import colors from "assets/theme/base/colors";
 import breakpoints from "assets/theme/base/breakpoints";
 import typography from "assets/theme/base/typography";
@@ -10,14 +8,12 @@ import boxShadows from "assets/theme/base/boxShadows";
 import borders from "assets/theme/base/borders";
 import globals from "assets/theme/base/globals";
 
-// Material Dashboard 2 React helper functions
 import boxShadow from "assets/theme/functions/boxShadow";
 import hexToRgb from "assets/theme/functions/hexToRgb";
 import linearGradient from "assets/theme/functions/linearGradient";
 import pxToRem from "assets/theme/functions/pxToRem";
 import rgba from "assets/theme/functions/rgba";
 
-// Material Dashboard 2 React components base styles for @mui material components
 import sidenav from "assets/theme/components/sidenav";
 import list from "assets/theme/components/list";
 import listItem from "assets/theme/components/list/listItem";
@@ -72,25 +68,16 @@ import dialogActions from "assets/theme/components/dialog/dialogActions";
 export default createTheme({
   direction: "rtl",
   breakpoints: { ...breakpoints },
-  palette: { ...colors },
+
+  palette: { ...colors, gradients: colors.gradients, mode: "light" },
   typography: { ...typography },
   boxShadows: { ...boxShadows },
   borders: { ...borders },
-  functions: {
-    boxShadow,
-    hexToRgb,
-    linearGradient,
-    pxToRem,
-    rgba,
-  },
+
+  functions: { boxShadow, hexToRgb, linearGradient, pxToRem, rgba },
 
   components: {
-    MuiCssBaseline: {
-      styleOverrides: {
-        ...globals,
-        ...container,
-      },
-    },
+    MuiCssBaseline: { styleOverrides: { ...globals, ...container } },
     MuiDrawer: { ...sidenav },
     MuiList: { ...list },
     MuiListItem: { ...listItem },
@@ -140,5 +127,26 @@ export default createTheme({
     MuiDialogContent: { ...dialogContent },
     MuiDialogContentText: { ...dialogContentText },
     MuiDialogActions: { ...dialogActions },
+
+    // mismos overrides de inputs claros
+    MuiOutlinedInput: {
+      styleOverrides: {
+        root: ({ theme }) => ({
+          backgroundColor: theme.palette.background.paper,
+          borderRadius: 10,
+          "& .MuiOutlinedInput-notchedOutline": { borderColor: theme.palette.divider },
+          "&:hover .MuiOutlinedInput-notchedOutline": { borderColor: theme.palette.primary.light },
+          "&.Mui-focused .MuiOutlinedInput-notchedOutline": { borderColor: theme.palette.primary.main },
+        }),
+        input: { paddingTop: 10.5, paddingBottom: 10.5 },
+      },
+    },
+    MuiSelect: {
+      defaultProps: { variant: "outlined", size: "small" },
+      styleOverrides: {
+        select: ({ theme }) => ({ backgroundColor: theme.palette.background.paper, paddingTop: 10.5, paddingBottom: 10.5 }),
+      },
+    },
+    MuiTextField: { defaultProps: { variant: "outlined", size: "small" } },
   },
 });

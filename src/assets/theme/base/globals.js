@@ -1,25 +1,20 @@
-
+// assets/theme/base/globals.js
 import colors from "assets/theme/base/colors";
 
-const { info, dark } = colors;
+const { primary, text } = colors;
 
 const globals = {
-  html: {
-    scrollBehavior: "smooth",
-  },
-  "*, *::before, *::after": {
-    margin: 0,
-    padding: 0,
-  },
-  "a, a:link, a:visited": {
-    textDecoration: "none !important",
-  },
+  html: { scrollBehavior: "smooth" },
+  "*, *::before, *::after": { margin: 0, padding: 0 },
+  "a, a:link, a:visited": { textDecoration: "none !important" },
+
+  // links neutros con hover azul
   "a.link, .link, a.link:link, .link:link, a.link:visited, .link:visited": {
-    color: `${dark.main} !important`,
+    color: `${text.main} !important`,
     transition: "color 150ms ease-in !important",
   },
   "a.link:hover, .link:hover, a.link:focus, .link:focus": {
-    color: `${info.main} !important`,
+    color: `${primary.main} !important`,
   },
 };
 

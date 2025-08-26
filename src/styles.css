@@ -2,12 +2,11 @@
 .MuiAutocomplete-popper { z-index: 2147483647 !important;background:#111 !important; color:#fff !important; }
 
 /* que siempre tenga fondo/contraste */
-.MuiAutocomplete-paper {
-  background-color: #111 !important;  /* adapta a tu tema */
-  color: #fff !important;
-  border: 1px solid rgba(255,255,255,.12) !important;
-  border-radius: 8px !important;
+.MuiAutocomplete-popper {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  z-index: 2147483647 !important;
 }
-
 /* por si algún Paper ancestro recorta */
 .MuiPaper-root, .MuiCard-root { overflow: visible; }

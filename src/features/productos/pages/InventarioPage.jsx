@@ -1,454 +1,753 @@
-import React, { useEffect, useState } from "react";
-import Grid from "@mui/material/Grid";
-import Card from "@mui/material/Card";
-import CardMedia from "@mui/material/CardMedia";
-import CardContent from "@mui/material/CardContent";
-import CardActions from "@mui/material/CardActions";
-import Typography from "@mui/material/Typography";
-import IconButton from "@mui/material/IconButton";
-import DeleteIcon from "@mui/icons-material/Delete";
-import EditIcon from "@mui/icons-material/Edit";
-import Select from "@mui/material/Select";
-import MenuItem from "@mui/material/MenuItem";
-import FormControl from "@mui/material/FormControl";
-import InputLabel from "@mui/material/InputLabel";
-import TextField from "@mui/material/TextField";
-import InputAdornment from "@mui/material/InputAdornment";
-import Dialog from "@mui/material/Dialog";
-import DialogTitle from "@mui/material/DialogTitle";
-import DialogContent from "@mui/material/DialogContent";
-import DialogActions from "@mui/material/DialogActions";
-import Button from "@mui/material/Button";
-import Snackbar from "@mui/material/Snackbar";
-import MuiAlert from "@mui/material/Alert";
-import Icon from "@mui/material/Icon";
-import { Box } from "@mui/material";
-
-import MDBox from "components/MDBox";
-import MDTypography from "components/MDTypography";
-import DashboardLayout from "examples/LayoutContainers/DashboardLayout";
-
+// features/productos/pages/InventarioPage.jsx
+import React, { useEffect, useMemo, useState } from "react";
+import PropTypes from "prop-types";
 import {
-  apiListarProductos,
-  apiEliminarProducto,
-  apiEditarProducto,
-  apiEditarProductoConImagenes,
-} from "../../../services/productos";
+  Box, Grid, Card, CardContent, Typography, TextField, InputAdornment, Select, MenuItem,
+  FormControl, OutlinedInput, Chip, ToggleButtonGroup, ToggleButton, Button, LinearProgress,
+  Avatar, Switch, FormControlLabel, CircularProgress, Dialog, DialogTitle, DialogContent,
+  DialogActions, Snackbar, Alert,
+} from "@mui/material";
 
-const Alert = React.forwardRef(function Alert(props, ref) {
-  return <MuiAlert elevation={6} ref={ref} variant="filled" {...props} />;
+import SearchIcon from "@mui/icons-material/Search";
+import PhoneIphoneIcon from "@mui/icons-material/PhoneIphone";
+import Inventory2OutlinedIcon from "@mui/icons-material/Inventory2Outlined";
+import TrendingUpIcon from "@mui/icons-material/TrendingUp";
+import ViewModuleIcon from "@mui/icons-material/ViewModule";
+import ViewListIcon from "@mui/icons-material/ViewList";
+import FiberNewIcon from "@mui/icons-material/FiberNew";
+import HistoryIcon from "@mui/icons-material/History";
+import EditIcon from "@mui/icons-material/Edit";
+
+// ================== helpers ==================
+const API_BASE = process.env.REACT_APP_API_URL || ""; // ej: http://localhost/iphoneShop-backend
+const INVENTARIO_URL = `${API_BASE}/api/inventario/index.php`;
+const PRODUCTOS_URL  = `${API_BASE}/api/productos/index.php`;
+
+const PLACEHOLDER = `${process.env.PUBLIC_URL || ""}/placeholder-product.jpg`;
+function handleImgError(e) {
+  const img = e.currentTarget;
+  if (img.dataset.fallback === "1") return;
+  img.dataset.fallback = "1";
+  img.src = PLACEHOLDER;
+}
+
+const fUSD = new Intl.NumberFormat("es-AR", {
+  style: "currency",
+  currency: "USD",
+  maximumFractionDigits: 0,
 });
 
-const InventarioPage = () => {
-  const [productos, setProductos] = useState([]);
-  const [productoSeleccionado, setProductoSeleccionado] = useState(null);
-  const [abiertoModal, setAbiertoModal] = useState(false);
+const batteryColor = (val) => {
+  const n = Number(val ?? 0);
+  if (n >= 90) return "success";
+  if (n >= 70) return "warning";
+  return "error";
+};
 
-  const [modoEdicion, setModoEdicion] = useState(false);
-  const [productoAEditar, setProductoAEditar] = useState(null);
-  const [imagenesNuevas, setImagenesNuevas] = useState([null, null, null, null]);
+const batteryBarSx = () => ({
+  height: 8,
+  borderRadius: 999,
+  "& .MuiLinearProgress-bar": { borderRadius: 999 },
+});
 
-  const [busqueda, setBusqueda] = useState("");
-  const [filtroEstado, setFiltroEstado] = useState("todos");
-  const [filtroOrigen, setFiltroOrigen] = useState("todos");
+const kpiCard = (title, value, Icon, color = "primary") => (
+  <Card elevation={0} sx={{ borderRadius: 3, border: "1px solid", borderColor: "divider" }}>
+    <CardContent sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+      <Box
+        sx={(t) => ({
+          p: 1.4,
+          borderRadius: "50%",
+          bgcolor: t.palette[color].light,
+          color: t.palette[color].main,
+          display: "grid",
+          placeItems: "center",
+        })}
+      >
+        <Icon />
+      </Box>
+      <Box>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 0.25 }}>
+          {title}
+        </Typography>
+        <Typography variant="h6" fontWeight={700}>
+          {value}
+        </Typography>
+      </Box>
+    </CardContent>
+  </Card>
+);
 
-  const [snackbar, setSnackbar] = useState({
-    open: false,
-    message: "",
-    severity: "success",
-  });
+// ================== tipos ==================
+const productShape = PropTypes.shape({
+  id: PropTypes.oneOfType([PropTypes.number, PropTypes.string]).isRequired,
+  sku: PropTypes.string,
+  marca: PropTypes.string,
+  modelo: PropTypes.string.isRequired,
+  almacenamiento_gb: PropTypes.oneOfType([PropTypes.number, PropTypes.string]).isRequired,
+  bateria_salud: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+  bateria_ciclos: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+  color: PropTypes.string.isRequired,
+  estado: PropTypes.oneOf(["nuevo", "usado"]).isRequired,
+  origen: PropTypes.string,
+  costo: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+  precio_lista: PropTypes.oneOfType([PropTypes.number, PropTypes.string]).isRequired,
+  garantia_meses: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+  status_stock: PropTypes.string,
+  imagen_url: PropTypes.string,
+  // 👇 nuevos para mostrar
+  imei_1: PropTypes.string,
+  imei_2: PropTypes.string,
+});
 
-  // Cargar productos
-  useEffect(() => {
-    (async () => {
-      try {
-        const lista = await apiListarProductos();
-        setProductos(lista || []);
-      } catch (err) {
-        console.error("Error al obtener productos", err);
-      }
-    })();
-  }, []);
+// helper para render de IMEI(s)
+const renderImeis = (p) => {
+  const i1 = p.imei_1 && String(p.imei_1).trim();
+  const i2 = p.imei_2 && String(p.imei_2).trim();
+  if (!i1 && !i2) return "—";
+  if (i1 && i2) return `${i1} / ${i2}`;
+  return i1 || i2;
+};
 
-  // Abrir modal de eliminación
-  const eliminar = (id) => {
-    const prod = productos.find((p) => p.id === id);
-    setProductoSeleccionado(prod || null);
-    setAbiertoModal(true);
-  };
-
-  // Confirmar eliminación
-  const handleEliminarConfirmado = async () => {
-    if (!productoSeleccionado) return;
-    try {
-      const res = await apiEliminarProducto(productoSeleccionado.id);
-      if (res?.success) {
-        setProductos((prev) => prev.filter((p) => p.id !== productoSeleccionado.id));
-        setSnackbar({ open: true, message: "Producto eliminado", severity: "success" });
-      } else {
-        setSnackbar({ open: true, message: "No se pudo eliminar", severity: "error" });
-      }
-    } catch (e) {
-      setSnackbar({ open: true, message: "Error al eliminar", severity: "error" });
-    } finally {
-      setAbiertoModal(false);
-      setProductoSeleccionado(null);
-    }
-  };
-
-  // Abrir editor
-  const editar = (producto) => {
-    setProductoAEditar({
-      ...producto,
-      // valores por si vienen null
-      almacenamiento_gb: producto.almacenamiento_gb ?? "",
-      garantia_meses: producto.garantia_meses ?? "",
-      costo: producto.costo ?? "",
-      precio_lista: producto.precio_lista ?? "",
-      estado: producto.estado ?? "usado",
-      origen: producto.origen ?? "compra",
-      notas: producto.notas ?? "",
-      imei_1: producto.imei_1 ?? "",
-      imei_2: producto.imei_2 ?? "",
-    });
-    setImagenesNuevas([null, null, null, null]);
-    setModoEdicion(true);
-  };
-
-  // Guardar cambios (sin imágenes)
-  const handleGuardarEdicion = async () => {
-    try {
-      const res = await apiEditarProducto(productoAEditar);
-      if (res?.success) {
-        setProductos((prev) => prev.map((p) => (p.id === productoAEditar.id ? { ...p, ...productoAEditar } : p)));
-        setSnackbar({ open: true, message: "Producto actualizado", severity: "success" });
-        setModoEdicion(false);
-      } else {
-        setSnackbar({ open: true, message: "No se pudo actualizar", severity: "error" });
-      }
-    } catch (e) {
-      setSnackbar({ open: true, message: "Error al actualizar", severity: "error" });
-    }
-  };
-
-  // Guardar cambios (con imágenes si cargaron)
-  const handleGuardarEdicionConImagenes = async () => {
-    try {
-      const hayImagenes = imagenesNuevas.some((img) => !!img);
-      let res;
-      if (hayImagenes) {
-        res = await apiEditarProductoConImagenes(productoAEditar, imagenesNuevas);
-      } else {
-        res = await apiEditarProducto(productoAEditar);
-      }
-      if (res?.success) {
-        setSnackbar({ open: true, message: "✅ Producto actualizado correctamente", severity: "success" });
-        setModoEdicion(false);
-        setImagenesNuevas([null, null, null, null]);
-        // Refrescar listado simple
-        const lista = await apiListarProductos();
-        setProductos(lista || []);
-      } else {
-        setSnackbar({ open: true, message: "❌ Error al actualizar el producto", severity: "error" });
-      }
-    } catch (e) {
-      setSnackbar({ open: true, message: "❌ Error al actualizar el producto", severity: "error" });
-    }
-  };
-
-  // Filtro
-  const productosFiltrados = productos.filter((p) => {
-    const q = busqueda.trim().toLowerCase();
-    const coincideBusqueda =
-      (p.marca || "").toLowerCase().includes(q) ||
-      (p.modelo || "").toLowerCase().includes(q) ||
-      (p.imei_1 || "").toLowerCase().includes(q) ||
-      (p.imei_2 || "").toLowerCase().includes(q);
-
-    const coincideEstado = filtroEstado === "todos" || p.estado === filtroEstado;
-    const coincideOrigen = filtroOrigen === "todos" || p.origen === filtroOrigen;
-
-    return coincideBusqueda && coincideEstado && coincideOrigen;
-  });
+// ================== items ==================
+function ProductCard({ p, showCost, onEdit, onDelete }) {
+  const precio = Number(p.precio_lista || 0);
+  const costo = Number(p.costo || 0);
+  const margen = precio - costo;
+  const margenPct = costo > 0 ? Math.round((margen / costo) * 100) : 0;
 
   return (
-    <DashboardLayout>
-      <MDBox pt={3} px={2}>
-        <MDBox
+    <Card elevation={0} sx={{ borderRadius: 3, border: "1px solid", borderColor: "divider", height: "100%" }}>
+      <Box sx={{ p: 2, pb: 0 }}>
+        <Box
+          component="img"
+          src={p.imagen_url || PLACEHOLDER}
+          alt={p.modelo}
+          loading="lazy"
+          onError={handleImgError}
+          sx={{ width: "100%", height: 200, objectFit: "cover", borderRadius: 2 }}
+        />
+      </Box>
+      <CardContent sx={{ pt: 1.5 }}>
+        <Typography variant="subtitle1" fontWeight={700}>
+          {p.modelo}
+        </Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 0.25 }}>
+          {p.color}
+        </Typography>
+
+        {/* IMEI(s) */}
+        <Typography
+          variant="caption"
+          sx={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace", display: "block", mb: 0.5 }}
+          color="text.secondary"
+          title={renderImeis(p)}
+        >
+          IMEI: {renderImeis(p)}
+        </Typography>
+
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.5 }}>
+          <Typography variant="body2">💾 {p.almacenamiento_gb}GB</Typography>
+          <Chip
+            size="small"
+            label={p.estado === "nuevo" ? "Nuevo" : "Usado"}
+            sx={(t) => ({
+              height: 20,
+              fontSize: 12,
+              fontWeight: 700,
+              bgcolor: p.estado === "nuevo" ? t.palette.success.main : t.palette.secondary.dark,
+              color: "#fff",
+            })}
+          />
+        </Box>
+
+        <Typography variant="caption" color="text.secondary">
+          🔋 Batería
+        </Typography>
+        <LinearProgress
+          variant="determinate"
+          value={Number(p.bateria_salud || 0)}
+          color={batteryColor(p.bateria_salud)}
+          sx={batteryBarSx()}
+        />
+        <Box sx={{ display: "flex", justifyContent: "space-between", mt: 0.5 }}>
+          <Typography variant="caption" color="text.secondary">
+            {p.bateria_salud ?? 0}%
+          </Typography>
+          <Typography variant="caption" color="text.secondary">
+            Stock
+          </Typography>
+        </Box>
+
+        {showCost && (
+          <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 1 }}>
+            Costo {fUSD.format(costo)} · Margen {margenPct >= 0 ? `+${margenPct}%` : `${margenPct}%`}
+          </Typography>
+        )}
+
+        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mt: 1.5 }}>
+          <Typography variant="h6" fontWeight={800} color="primary.main">
+            {fUSD.format(precio)}
+          </Typography>
+          <Box sx={{ display: "flex", gap: 1 }}>
+            <Button
+              size="small"
+              variant="outlined"
+              startIcon={<EditIcon />}
+              onClick={() => onEdit(p)}
+              sx={{
+                borderColor: "primary.main",
+                color: "primary.main",
+                fontWeight: 700,
+                "&:hover": { bgcolor: "primary.main", color: "#fff", borderColor: "primary.main" },
+              }}
+            >
+              Editar
+            </Button>
+            <Button size="small" variant="contained" color="error" onClick={() => onDelete(p)}>
+              Eliminar
+            </Button>
+          </Box>
+        </Box>
+      </CardContent>
+    </Card>
+  );
+}
+ProductCard.propTypes = {
+  p: productShape.isRequired,
+  showCost: PropTypes.bool,
+  onEdit: PropTypes.func,
+  onDelete: PropTypes.func,
+};
+
+function ProductRow({ p, showCost, onEdit, onDelete }) {
+  const precio = Number(p.precio_lista || 0);
+  const costo = Number(p.costo || 0);
+  const margen = precio - costo;
+  const margenPct = costo > 0 ? Math.round((margen / costo) * 100) : 0;
+
+  return (
+    <Box
+      sx={{
+        borderRadius: 3,
+        border: "1px solid",
+        borderColor: "divider",
+        p: 1.5,
+        display: "flex",
+        alignItems: "center",
+        gap: 2,
+        bgcolor: "background.paper",
+      }}
+    >
+      <Avatar
+        variant="rounded"
+        src={p.imagen_url || PLACEHOLDER}
+        alt={p.modelo}
+        onError={handleImgError}
+        sx={{ width: 64, height: 64, borderRadius: 2 }}
+      />
+      <Box sx={{ flex: 1, minWidth: 220 }}>
+        <Typography fontWeight={700}>{p.modelo}</Typography>
+        <Typography variant="body2" color="text.secondary">
+          {p.color}
+        </Typography>
+        {/* IMEI(s) */}
+        <Typography
+          variant="caption"
+          sx={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" }}
+          color="text.secondary"
+          title={renderImeis(p)}
+        >
+          IMEI: {renderImeis(p)}
+        </Typography>
+      </Box>
+      <Box sx={{ width: 110 }}>
+        <Typography variant="body2">{p.almacenamiento_gb}GB</Typography>
+      </Box>
+      <Box sx={{ width: 120 }}>
+        <Chip
+          size="small"
+          label={p.estado === "nuevo" ? "Nuevo" : "Usado"}
+          sx={(t) => ({
+            fontWeight: 700,
+            bgcolor: p.estado === "nuevo" ? t.palette.success.main : t.palette.secondary.dark,
+            color: "#fff",
+          })}
+        />
+      </Box>
+      <Box sx={{ width: 180 }}>
+        <Typography variant="caption" color="text.secondary">
+          Batería
+        </Typography>
+        <LinearProgress
+          variant="determinate"
+          value={Number(p.bateria_salud || 0)}
+          color={batteryColor(p.bateria_salud)}
+          sx={batteryBarSx()}
+        />
+      </Box>
+      <Box sx={{ width: 140, textAlign: "right" }}>
+        <Typography variant="h6" fontWeight={800} color="primary.main">
+          {fUSD.format(precio)}
+        </Typography>
+        {showCost && (
+          <Typography variant="caption" color="text.secondary">
+            C {fUSD.format(costo)} · {margenPct >= 0 ? `+${margenPct}%` : `${margenPct}%`}
+          </Typography>
+        )}
+      </Box>
+      <Box sx={{ display: "flex", gap: 1 }}>
+        <Button
+          size="small"
+          variant="outlined"
+          startIcon={<EditIcon />}
+          onClick={() => onEdit(p)}
           sx={{
-            backgroundColor: "#1e1e1e",
-            borderRadius: "12px",
-            p: 3,
-            boxShadow: "0 2px 10px rgba(0,0,0,0.3)",
-            mb: 3,
+            borderColor: "primary.main",
+            color: "primary.main",
+            fontWeight: 700,
+            "&:hover": { bgcolor: "primary.main", color: "#fff", borderColor: "primary.main" },
           }}
         >
-          <MDTypography variant="h4" fontWeight="bold" sx={{ color: "#fff", mb: 3 }}>
-            Stock Disponible
-          </MDTypography>
+          Editar
+        </Button>
+        <Button size="small" variant="contained" color="error" onClick={() => onDelete(p)}>
+          Eliminar
+        </Button>
+      </Box>
+    </Box>
+  );
+}
+ProductRow.propTypes = {
+  p: productShape.isRequired,
+  showCost: PropTypes.bool,
+  onEdit: PropTypes.func,
+  onDelete: PropTypes.func,
+};
 
-          <Grid container spacing={2}>
-            <Grid item xs={12} md={4}>
-              <TextField
-                fullWidth
-                label="Buscar por marca, modelo o IMEI"
-                variant="outlined"
-                value={busqueda}
-                onChange={(e) => setBusqueda(e.target.value)}
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <Icon sx={{ color: "#ff9100" }}>search</Icon>
-                    </InputAdornment>
-                  ),
-                }}
-                InputLabelProps={{ sx: { color: "#aaa", "&.Mui-focused": { color: "#ff9100" } } }}
-                sx={{
-                  backgroundColor: "#2a2a2a",
-                  borderRadius: "8px",
-                  input: { color: "#fff" },
-                  "& fieldset": { borderColor: "#444" },
-                  "&:hover fieldset": { borderColor: "#ff9100" },
-                }}
-              />
-            </Grid>
+// ================== página ==================
+export default function InventarioPage() {
+  const [view, setView] = useState("grid"); // 'grid' | 'list'
+  const [query, setQuery] = useState("");
+  const [modelo, setModelo] = useState("all");
+  const [color, setColor] = useState("all");
+  const [almacenamiento, setAlmacenamiento] = useState("all");
+  const [estado, setEstado] = useState("all");
+  const [minBat, setMinBat] = useState("");
+  const [showCost, setShowCost] = useState(false);
 
-            <Grid item xs={12} sm={6} md={4}>
-              <FormControl fullWidth>
-                <InputLabel sx={{ color: "#aaa", "&.Mui-focused": { color: "#ff9100" } }}>
-                  Estado
-                </InputLabel>
-                <Select
-                  value={filtroEstado}
-                  onChange={(e) => setFiltroEstado(e.target.value)}
-                  sx={{
-                    backgroundColor: "#2a2a2a",
-                    color: "#fff",
-                    mt: "10px",
-                    "& fieldset": { borderColor: "#444" },
-                  }}
-                >
-                  <MenuItem value="todos">Todos</MenuItem>
-                  <MenuItem value="nuevo">Nuevo</MenuItem>
-                  <MenuItem value="usado">Usado</MenuItem>
-                  <MenuItem value="reacond">Reacondicionado</MenuItem>
-                  <MenuItem value="defectuoso">Defectuoso</MenuItem>
-                </Select>
-              </FormControl>
-            </Grid>
+  const [data, setData] = useState([]);
+  const [kpis, setKpis] = useState({
+    total: 0,
+    valor_venta: 0,
+    valor_costo: 0,
+    nuevos: 0,
+    usados: 0,
+  });
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState("");
 
-            <Grid item xs={12} sm={6} md={4}>
-              <FormControl fullWidth>
-                <InputLabel sx={{ color: "#aaa", "&.Mui-focused": { color: "#ff9100" } }}>
-                  Origen
-                </InputLabel>
-                <Select
-                  value={filtroOrigen}
-                  onChange={(e) => setFiltroOrigen(e.target.value)}
-                  sx={{
-                    backgroundColor: "#2a2a2a",
-                    color: "#fff",
-                    mt: "10px",
-                    "& fieldset": { borderColor: "#444" },
-                  }}
-                >
-                  <MenuItem value="todos">Todos</MenuItem>
-                  <MenuItem value="compra">Compra</MenuItem>
-                  <MenuItem value="permuta">Permuta</MenuItem>
-                  <MenuItem value="consignacion">Consignación</MenuItem>
-                </Select>
-              </FormControl>
-            </Grid>
+  // Diálogos
+  const [editOpen, setEditOpen] = useState(false);
+  const [editData, setEditData] = useState(null);
+  const [delOpen, setDelOpen] = useState(false);
+  const [selected, setSelected] = useState(null);
+  const [toast, setToast] = useState({ open: false, msg: "", sev: "success" });
+
+  function openEdit(p) {
+    setSelected(p);
+    setEditData({
+      id: p.id,
+      sku: p.sku || "",
+      precio_lista: p.precio_lista ?? 0,
+      costo: p.costo ?? 0,
+      estado: p.estado || "usado",
+      bateria_salud: p.bateria_salud ?? "",
+      bateria_ciclos: p.bateria_ciclos ?? "",
+      color: p.color || "",
+      almacenamiento_gb: p.almacenamiento_gb ?? "",
+      status_stock: p.status_stock || "disponible",
+    });
+    setEditOpen(true);
+  }
+  function openDelete(p) {
+    setSelected(p);
+    setDelOpen(true);
+  }
+  function closeDialogs() {
+    setEditOpen(false);
+    setDelOpen(false);
+    setSelected(null);
+  }
+  const toNumberOrNull = (v) => {
+    if (v === "" || v === null || v === undefined) return null;
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  };
+
+  async function saveEdit() {
+    if (!editData?.id) return;
+    try {
+      const payload = {
+        sku: editData.sku || null,
+        precio_lista: toNumberOrNull(editData.precio_lista),
+        costo: toNumberOrNull(editData.costo),
+        estado: editData.estado,
+        bateria_salud: toNumberOrNull(editData.bateria_salud),
+        bateria_ciclos: toNumberOrNull(editData.bateria_ciclos),
+        color: editData.color,
+        almacenamiento_gb: toNumberOrNull(editData.almacenamiento_gb),
+        status_stock: editData.status_stock,
+      };
+
+      const res = await fetch(`${PRODUCTOS_URL}?id=${editData.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const updated = await res.json();
+
+      setData((prev) => prev.map((x) => (String(x.id) === String(updated.id) ? { ...x, ...updated } : x)));
+      setToast({ open: true, sev: "success", msg: "Producto actualizado" });
+      closeDialogs();
+    } catch (e) {
+      setToast({ open: true, sev: "error", msg: e.message || "Error al actualizar" });
+    }
+  }
+
+  async function confirmDelete() {
+    if (!selected?.id) return;
+    try {
+      const res = await fetch(`${PRODUCTOS_URL}?id=${selected.id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      setData((prev) => prev.filter((x) => String(x.id) !== String(selected.id)));
+      setToast({ open: true, sev: "success", msg: "Producto eliminado" });
+      closeDialogs();
+    } catch (e) {
+      setToast({ open: true, sev: "error", msg: e.message || "Error al eliminar" });
+    }
+  }
+
+  // ---- fetch server-side filtering
+  useEffect(() => {
+    const ctrl = new AbortController();
+    setLoading(true);
+    setErr("");
+
+    const params = new URLSearchParams();
+    params.set("status_stock", "disponible");
+    if (query) params.set("q", query);
+    if (modelo !== "all") params.set("modelo", modelo);
+    if (color !== "all") params.set("color", color);
+    if (almacenamiento !== "all") params.set("almacenamiento_gb", almacenamiento);
+    if (estado !== "all") params.set("estado", estado);
+    if (minBat !== "") params.set("min_bateria", minBat);
+
+    fetch(`${INVENTARIO_URL}?${params.toString()}`, { signal: ctrl.signal })
+      .then(async (r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
+      .then((json) => {
+        const items = Array.isArray(json.items) ? json.items : [];
+        setData(items);
+
+        const meta = json.meta || {};
+        const bkKpis = meta.kpis || {};
+
+        const valorVenta = items.reduce((acc, p) => acc + Number(p.precio_lista || 0), 0);
+        const valorCosto = items.reduce((acc, p) => acc + Number(p.costo || 0), 0);
+        const nuevosF = items.filter((p) => p.estado === "nuevo").length;
+        const usadosF = items.filter((p) => p.estado === "usado").length;
+
+        setKpis({
+          total: Number(bkKpis.total ?? items.length),
+          valor_venta: Number(bkKpis.valor_venta ?? valorVenta),
+          valor_costo: Number(bkKpis.valor_costo ?? valorCosto),
+          nuevos: Number(bkKpis.nuevos ?? nuevosF),
+          usados: Number(bkKpis.usados ?? usadosF),
+        });
+      })
+      .catch((e) => {
+        if (e.name !== "AbortError") setErr(e.message || "Error");
+      })
+      .finally(() => setLoading(false));
+
+    return () => ctrl.abort();
+  }, [query, modelo, color, almacenamiento, estado, minBat]);
+
+  // catálogos (desde la data actual)
+  const modelos = useMemo(() => Array.from(new Set(data.map((d) => d.modelo))).sort(), [data]);
+  const colores = useMemo(() => Array.from(new Set(data.map((d) => d.color))).sort(), [data]);
+  const almacs = useMemo(
+    () => Array.from(new Set(data.map((d) => String(d.almacenamiento_gb)))).sort((a, b) => Number(a) - Number(b)),
+    [data]
+  );
+
+  // front styles helper
+  const controlSx = (minWidth = 160) => ({
+    minWidth,
+    bgcolor: "background.paper",
+    "& .MuiOutlinedInput-notchedOutline": { borderColor: "divider" },
+    "&:hover .MuiOutlinedInput-notchedOutline": { borderColor: "primary.light" },
+    "&.Mui-focused .MuiOutlinedInput-notchedOutline": { borderColor: "primary.main" },
+    "& .MuiSelect-select, & input": { py: 1.1 },
+  });
+
+  const placeholder = (text) => (
+    <Typography variant="body2" color="text.disabled">
+      {text}
+    </Typography>
+  );
+
+  return (
+    <Box sx={{ px: { xs: 2, md: 3 }, py: 3 }}>
+      <Typography variant="h4" fontWeight={800} sx={{ textAlign: "center" }}>
+        Inventario iPhone
+      </Typography>
+      <Typography variant="body2" color="text.secondary" sx={{ textAlign: "center", mb: 3 }}>
+        Gestión profesional de stock
+      </Typography>
+
+      {/* KPIs */}
+      <Grid container spacing={2} sx={{ mb: 2 }}>
+        <Grid item xs={12} sm={6} md={3}>
+          {kpiCard("Total Dispositivos", kpis.total, Inventory2OutlinedIcon, "secondary")}
+        </Grid>
+        <Grid item xs={12} sm={6} md={3}>
+          {kpiCard("Valor Potencial (venta)", fUSD.format(kpis.valor_venta), TrendingUpIcon, "warning")}
+        </Grid>
+        <Grid item xs={12} sm={6} md={3}>
+          {kpiCard("Nuevos", kpis.nuevos, FiberNewIcon, "success")}
+        </Grid>
+        <Grid item xs={12} sm={6} md={3}>
+          {kpiCard("Usados", kpis.usados, HistoryIcon, "secondary")}
+        </Grid>
+
+        {showCost && (
+          <Grid item xs={12} sm={6} md={3}>
+            {kpiCard("Valor Inventario (costo)", fUSD.format(kpis.valor_costo), PhoneIphoneIcon, "info")}
           </Grid>
-        </MDBox>
+        )}
+      </Grid>
 
+      {/* Filtros */}
+      <Card elevation={0} sx={{ borderRadius: 3, border: "1px solid", borderColor: "divider", mb: 2 }}>
+        <CardContent sx={{ display: "flex", gap: 12 / 8, flexWrap: "wrap", alignItems: "center" }}>
+          <TextField
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Buscar por modelo, color o SKU…"
+            size="small"
+            fullWidth
+            variant="outlined"
+            sx={controlSx(280)}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon fontSize="small" />
+                </InputAdornment>
+              ),
+            }}
+          />
+
+          <FormControl size="small" sx={controlSx()}>
+            <Select
+              value={modelo}
+              onChange={(e) => setModelo(e.target.value)}
+              input={<OutlinedInput />}
+              displayEmpty
+              renderValue={(v) => (v === "all" ? placeholder("Todos los modelos") : v)}
+            >
+              <MenuItem value="all">Todos los modelos</MenuItem>
+              {modelos.map((m) => (
+                <MenuItem key={m} value={m}>
+                  {m}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+
+          <FormControl size="small" sx={controlSx()}>
+            <Select
+              value={color}
+              onChange={(e) => setColor(e.target.value)}
+              input={<OutlinedInput />}
+              displayEmpty
+              renderValue={(v) => (v === "all" ? placeholder("Todos los colores") : v)}
+            >
+              <MenuItem value="all">Todos los colores</MenuItem>
+              {colores.map((c) => (
+                <MenuItem key={c} value={c}>
+                  {c}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+
+          <FormControl size="small" sx={controlSx(190)}>
+            <Select
+              value={almacenamiento}
+              onChange={(e) => setAlmacenamiento(e.target.value)}
+              input={<OutlinedInput />}
+              displayEmpty
+              renderValue={(v) => (v === "all" ? placeholder("Todo el almacenamiento") : `${v} GB`)}
+            >
+              <MenuItem value="all">Todo el almacenamiento</MenuItem>
+              {almacs.map((a) => (
+                <MenuItem key={a} value={a}>
+                  {a} GB
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+
+          <FormControl size="small" sx={controlSx()}>
+            <Select
+              value={estado}
+              onChange={(e) => setEstado(e.target.value)}
+              input={<OutlinedInput />}
+              displayEmpty
+              renderValue={(v) => (v === "all" ? placeholder("Todos los estados") : v === "nuevo" ? "Nuevo" : "Usado")}
+            >
+              <MenuItem value="all">Todos los estados</MenuItem>
+              <MenuItem value="nuevo">Nuevo</MenuItem>
+              <MenuItem value="usado">Usado</MenuItem>
+            </Select>
+          </FormControl>
+
+          <TextField
+            size="small"
+            placeholder="Batería mín. %"
+            type="number"
+            inputProps={{ min: 0, max: 100 }}
+            value={minBat}
+            onChange={(e) => setMinBat(e.target.value)}
+            variant="outlined"
+            sx={controlSx(140)}
+          />
+
+          <Box sx={{ flex: 1 }} />
+
+          <FormControlLabel
+            control={<Switch checked={showCost} onChange={(e) => setShowCost(e.target.checked)} size="small" />}
+            label="Mostrar costos"
+          />
+
+          <ToggleButtonGroup size="small" value={view} exclusive onChange={(_, v) => v && setView(v)}>
+            <ToggleButton
+              value="grid"
+              sx={{
+                "&.Mui-selected": {
+                  bgcolor: "primary.main",
+                  color: "white",
+                  "&:hover": { bgcolor: "primary.dark" },
+                },
+              }}
+            >
+              <ViewModuleIcon fontSize="small" />
+            </ToggleButton>
+            <ToggleButton
+              value="list"
+              sx={{
+                "&.Mui-selected": {
+                  bgcolor: "primary.main",
+                  color: "white",
+                  "&:hover": { bgcolor: "primary.dark" },
+                },
+              }}
+            >
+              <ViewListIcon fontSize="small" />
+            </ToggleButton>
+          </ToggleButtonGroup>
+        </CardContent>
+      </Card>
+
+      {/* Resultados */}
+      <Typography variant="h6" sx={{ mb: 1.5 }}>
+        Resultados ({data.length})
+      </Typography>
+
+      {loading ? (
+        <Box sx={{ py: 6, display: "grid", placeItems: "center" }}>
+          <CircularProgress size={28} />
+        </Box>
+      ) : err ? (
+        <Typography color="error">Error: {err}</Typography>
+      ) : view === "grid" ? (
         <Grid container spacing={2}>
-          {productosFiltrados.map((p) => (
-            <Grid item xs={12} sm={6} md={4} key={p.id}>
-              <Card
-                sx={{
-                  backgroundColor: "#1e1e1e",
-                  borderRadius: "12px",
-                  boxShadow: "0 2px 8px rgba(0,0,0,0.3)",
-                  border: "1px solid #2a2a2a",
-                  transition: "transform 0.2s ease",
-                  "&:hover": { transform: "scale(1.015)", boxShadow: "0 4px 12px rgba(255,145,0,.3)" },
-                }}
-              >
-                <CardMedia
-                  component="img"
-                  height="180"
-                  image={p.imagen_principal || "/assets/no-image.png"}
-                  alt={`${p.marca} ${p.modelo}`}
-                  sx={{ objectFit: "cover", borderTopLeftRadius: "12px", borderTopRightRadius: "12px" }}
-                />
-                <CardContent sx={{ color: "#e0e0e0", p: 2 }}>
-                  <Typography variant="subtitle1" fontWeight="bold" color="#fff">
-                    {p.marca} {p.modelo} • {p.almacenamiento_gb || "-"}GB
-                  </Typography>
-                  <Typography variant="body2" sx={{ color: "#bbbbbb", mt: 0.5 }}>
-                    Color: {p.color || "-"} • Estado: {p.estado || "-"} • Origen: {p.origen || "-"}
-                  </Typography>
-                  <Typography variant="body2" sx={{ color: "#ff9100", fontWeight: "bold", mt: 1 }}>
-                    Precio lista: ${Number(p.precio_lista || 0).toLocaleString()}
-                  </Typography>
-                </CardContent>
-                <CardActions sx={{ justifyContent: "flex-end", px: 2, pb: 2 }}>
-                  <IconButton size="small" sx={{ color: "#ff9100" }} onClick={() => editar(p)}>
-                    <EditIcon />
-                  </IconButton>
-                  <IconButton size="small" sx={{ color: "#e53935" }} onClick={() => eliminar(p.id)}>
-                    <DeleteIcon />
-                  </IconButton>
-                </CardActions>
-              </Card>
+          {data.map((p) => (
+            <Grid key={p.id} item xs={12} sm={6} md={4} lg={3}>
+              <ProductCard p={p} showCost={showCost} onEdit={openEdit} onDelete={openDelete} />
             </Grid>
           ))}
         </Grid>
+      ) : (
+        <Grid container spacing={1}>
+          {data.map((p) => (
+            <Grid key={p.id} item xs={12}>
+              <ProductRow p={p} showCost={showCost} onEdit={openEdit} onDelete={openDelete} />
+            </Grid>
+          ))}
+        </Grid>
+      )}
 
-        {/* Modal confirmación */}
-        <Dialog open={abiertoModal} onClose={() => setAbiertoModal(false)}>
-          <DialogTitle>¿Confirmar eliminación?</DialogTitle>
-          <DialogContent>
-            <MDTypography>
-              ¿Estás seguro de eliminar {productoSeleccionado?.marca} {productoSeleccionado?.modelo}?
-            </MDTypography>
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={() => setAbiertoModal(false)} color="primary">
-              Cancelar
-            </Button>
-            <Button onClick={handleEliminarConfirmado} color="error">
-              Eliminar
-            </Button>
-          </DialogActions>
-        </Dialog>
+      {/* Dialogo Editar */}
+      <Dialog open={editOpen} onClose={closeDialogs} fullWidth maxWidth="sm">
+        <DialogTitle>Editar producto #{editData?.id}</DialogTitle>
+        <DialogContent dividers sx={{ display: "grid", gap: 2, pt: 2 }}>
+          <TextField label="SKU" value={editData?.sku ?? ""} onChange={(e) => setEditData((d) => ({ ...d, sku: e.target.value }))} size="small" />
+          <TextField label="Precio lista (USD)" type="number" value={editData?.precio_lista ?? ""} onChange={(e) => setEditData((d) => ({ ...d, precio_lista: e.target.value }))} size="small" />
+          <TextField label="Costo (USD)" type="number" value={editData?.costo ?? ""} onChange={(e) => setEditData((d) => ({ ...d, costo: e.target.value }))} size="small" />
+          <FormControl size="small">
+            <Select value={editData?.estado ?? "usado"} onChange={(e) => setEditData((d) => ({ ...d, estado: e.target.value }))} displayEmpty input={<OutlinedInput />}>
+              <MenuItem value="nuevo">Nuevo</MenuItem>
+              <MenuItem value="usado">Usado</MenuItem>
+            </Select>
+          </FormControl>
+          <TextField label="Batería salud (%)" type="number" inputProps={{ min: 0, max: 100 }} value={editData?.bateria_salud ?? ""} onChange={(e) => setEditData((d) => ({ ...d, bateria_salud: e.target.value }))} size="small" />
+          <TextField label="Ciclos de batería" type="number" value={editData?.bateria_ciclos ?? ""} onChange={(e) => setEditData((d) => ({ ...d, bateria_ciclos: e.target.value }))} size="small" />
+          <TextField label="Color" value={editData?.color ?? ""} onChange={(e) => setEditData((d) => ({ ...d, color: e.target.value }))} size="small" />
+          <TextField label="Almacenamiento (GB)" type="number" value={editData?.almacenamiento_gb ?? ""} onChange={(e) => setEditData((d) => ({ ...d, almacenamiento_gb: e.target.value }))} size="small" />
+          <FormControl size="small">
+            <Select value={editData?.status_stock ?? "disponible"} onChange={(e) => setEditData((d) => ({ ...d, status_stock: e.target.value }))} input={<OutlinedInput />}>
+              <MenuItem value="disponible">Disponible</MenuItem>
+              <MenuItem value="reservado">Reservado</MenuItem>
+              <MenuItem value="vendido">Vendido</MenuItem>
+              <MenuItem value="en_reparacion">En reparación</MenuItem>
+              <MenuItem value="eliminado">Eliminado</MenuItem>
+            </Select>
+          </FormControl>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={closeDialogs}>Cancelar</Button>
+          <Button variant="contained" onClick={saveEdit}>Guardar</Button>
+        </DialogActions>
+      </Dialog>
 
-        {/* Modal de edición */}
-        {modoEdicion && productoAEditar && (
-          <Dialog open={modoEdicion} onClose={() => setModoEdicion(false)} maxWidth="md" fullWidth>
-            <DialogTitle sx={{ bgcolor: "#1e1e1e", color: "#fff" }}>Editar Teléfono</DialogTitle>
+      {/* Confirmar eliminar */}
+      <Dialog open={delOpen} onClose={closeDialogs}>
+        <DialogTitle>Eliminar producto</DialogTitle>
+        <DialogContent dividers>
+          <Typography>¿Seguro que querés eliminar el producto #{selected?.id}?</Typography>
+          <Typography variant="caption" color="text.secondary">Esta acción elimina el registro y sus imágenes.</Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={closeDialogs}>Cancelar</Button>
+          <Button color="error" variant="contained" onClick={confirmDelete}>Eliminar</Button>
+        </DialogActions>
+      </Dialog>
 
-            <DialogContent
-              sx={{
-                backgroundColor: "#1e1e1e",
-                display: "flex",
-                flexWrap: "wrap",
-                gap: 2,
-                pt: 2,
-              }}
-            >
-              {[
-                { label: "Marca", key: "marca" },
-                { label: "Modelo", key: "modelo" },
-                { label: "Almacenamiento (GB)", key: "almacenamiento_gb", type: "number" },
-                { label: "Color", key: "color" },
-                { label: "IMEI 1", key: "imei_1" },
-                { label: "IMEI 2", key: "imei_2" },
-                { label: "Costo", key: "costo", type: "number" },
-                { label: "Precio Lista", key: "precio_lista", type: "number" },
-                { label: "Garantía (meses)", key: "garantia_meses", type: "number" },
-                { label: "Notas", key: "notas" },
-              ].map(({ label, key, type }) => (
-                <TextField
-                  key={key}
-                  label={label}
-                  type={type || "text"}
-                  value={productoAEditar[key] ?? ""}
-                  onChange={(e) => setProductoAEditar({ ...productoAEditar, [key]: e.target.value })}
-                  fullWidth
-                  sx={{
-                    input: { color: "#fff" },
-                    label: { color: "#aaa" },
-                    "& label.Mui-focused": { color: "#ff9100" },
-                    "& .MuiOutlinedInput-root": {
-                      "& fieldset": { borderColor: "#444" },
-                      "&:hover fieldset": { borderColor: "#ff9100" },
-                      "&.Mui-focused fieldset": { borderColor: "#ff9100" },
-                      backgroundColor: "#2a2a2a",
-                    },
-                  }}
-                />
-              ))}
-
-              {[
-                { label: "Estado", key: "estado", options: ["nuevo", "usado", "reacond", "defectuoso"] },
-                { label: "Origen", key: "origen", options: ["compra", "permuta", "consignacion"] },
-              ].map(({ label, key, options }) => (
-                <FormControl fullWidth key={key}>
-                  <InputLabel sx={{ color: "#aaa", "&.Mui-focused": { color: "#ff9100" } }}>{label}</InputLabel>
-                  <Select
-                    value={productoAEditar[key] || ""}
-                    label={label}
-                    onChange={(e) => setProductoAEditar({ ...productoAEditar, [key]: e.target.value })}
-                    sx={{
-                      color: "#fff",
-                      backgroundColor: "#2a2a2a",
-                      pt: "16px",
-                      "& .MuiOutlinedInput-notchedOutline": { borderColor: "#444" },
-                      "&:hover .MuiOutlinedInput-notchedOutline": { borderColor: "#ff9100" },
-                      "&.Mui-focused .MuiOutlinedInput-notchedOutline": { borderColor: "#ff9100" },
-                    }}
-                  >
-                    {options.map((opt) => (
-                      <MenuItem sx={{ backgroundColor: "#2a2a2a" }} key={opt} value={opt}>
-                        {opt}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-              ))}
-
-              {[0, 1, 2, 3].map((i) => (
-                <Box key={i} sx={{ my: 1, color: "#fff", width: "100%" }}>
-                  <InputLabel sx={{ color: "#aaa" }}>{`Imagen ${i + 1}`}</InputLabel>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => {
-                      const archivos = [...imagenesNuevas];
-                      archivos[i] = e.target.files?.[0] || null;
-                      setImagenesNuevas(archivos);
-                    }}
-                    style={{ color: "#fff" }}
-                  />
-                </Box>
-              ))}
-            </DialogContent>
-
-            <DialogActions sx={{ bgcolor: "#1e1e1e" }}>
-              <Button onClick={() => setModoEdicion(false)} color="warning">
-                Cancelar
-              </Button>
-              <Button
-                onClick={handleGuardarEdicionConImagenes}
-                color="success"
-                variant="contained"
-                sx={{
-                  backgroundColor: "#ff9100",
-                  color: "#000",
-                  "&:hover": { backgroundColor: "#e07f00" },
-                }}
-              >
-                Guardar Cambios
-              </Button>
-            </DialogActions>
-          </Dialog>
-        )}
-
-        <Snackbar
-          open={snackbar.open}
-          autoHideDuration={4000}
-          onClose={() => setSnackbar({ ...snackbar, open: false })}
-          anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
-        >
-          <Alert onClose={() => setSnackbar({ ...snackbar, open: false })} severity={snackbar.severity} sx={{ width: "100%" }}>
-            {snackbar.message}
-          </Alert>
-        </Snackbar>
-      </MDBox>
-    </DashboardLayout>
+      <Snackbar
+        open={toast.open}
+        autoHideDuration={2500}
+        onClose={() => setToast((t) => ({ ...t, open: false }))}
+        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+      >
+        <Alert severity={toast.sev} onClose={() => setToast((t) => ({ ...t, open: false }))}>
+          {toast.msg}
+        </Alert>
+      </Snackbar>
+    </Box>
   );
-};
-
-export default InventarioPage;
+}

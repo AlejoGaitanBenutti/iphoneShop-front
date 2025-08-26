@@ -26,6 +26,8 @@ import GroupIcon from "@mui/icons-material/Group";
 import PropTypes from "prop-types";
 import BuscarProducto from "./BuscarProducto";
 import PopperSmokeTest from "./PopperSmokeTest";
+import BuscarProductoLite from "./BuscarProductoLite";
+
 
 import {
   apiProductosDisponibles,
@@ -95,6 +97,7 @@ export default function VentasAlta({ onCreated }) {
   // Debounce de búsqueda
   const tRef = useRef(null);
   useEffect(() => {
+    console.log("DEBUG opciones", opciones.slice(0,3));
     window.clearTimeout(tRef.current);
     tRef.current = window.setTimeout(async () => {
       try {
@@ -249,15 +252,14 @@ export default function VentasAlta({ onCreated }) {
             </Typography>
 
 
-<BuscarProducto
+<BuscarProductoLite
   options={opciones}
   loading={loadingSearch}
-  inputValue={query}
-  onInputChange={(_, v) => setQuery(v)}
-  onPick={(opt) => addItem(opt)}
+  onSearch={(v) => setQuery(v)}     // dispara tu fetch con debounce que ya tenés
+  onPick={(opt) => addItem(opt)}    // agrega al carrito
   textFieldProps={selectFixProps}
+  disablePortal={true}              // 👈 importantísimo para descartar portal
 />
-
 
 
           

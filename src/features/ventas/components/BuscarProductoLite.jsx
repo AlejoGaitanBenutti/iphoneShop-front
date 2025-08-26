@@ -1,51 +1,50 @@
-// src/features/ventas/components/BuscarProducto.jsx
 import * as React from "react";
-import {
-  Autocomplete,
-  TextField,
-  Chip,
-  Stack,
-  Typography,
-  Paper,
-  Popper,
-} from "@mui/material";
+import { Autocomplete, TextField, Chip, Stack, Typography, Paper, Popper } from "@mui/material";
 import PropTypes from "prop-types";
 
-// Popper con forwardRef (OBLIGATORIO con MUI) y z-index alto
+// Popper con z-index alto (forwardRef requerido por MUI)
 const ZPopper = React.forwardRef(function ZPopper(props, ref) {
   const { style, ...other } = props;
   return <Popper ref={ref} {...other} style={{ zIndex: 2147483647, ...(style || {}) }} />;
 });
 ZPopper.propTypes = { style: PropTypes.object };
 
-export default function BuscarProducto({
+export default function BuscarProductoLite({
   options,
   loading = false,
-  inputValue,
-  onInputChange,     // (event, value)
-  onPick,            // (option)
+  onSearch,      // (texto) => void  -> dispara tu fetch
+  onPick,        // (opcion) => void -> agrega al carrito
   label = "Buscar iPhone disponible",
   placeholder = "Modelo, color, IMEI, SKU…",
   textFieldProps = {},
-  forceOpen = true,      // ⚠️ forzamos abierto para diagnosticar
-  portalToBody = true,   // si no aparece, probá false
+  disablePortal = true, // 👈 por defecto SIN portal (render local)
 }) {
-  // 👉 abrimos SIEMPRE mientras dure el diagnóstico
-  const open = true;
+  const [text, setText] = React.useState("");
+  const [open, setOpen] = React.useState(false);
+
+  // Cuando cambia el texto, avisamos al padre para que busque
+  const handleInput = (_e, v) => {
+    setText(v);
+    onSearch?.(v);
+  };
+
+  // Abrimos/cerramos cuando llegan opciones o cambia el texto
+  React.useEffect(() => {
+    setOpen(Boolean(text) && options.length > 0);
+  }, [text, options]);
 
   return (
     <Autocomplete
       open={open}
-      keepMounted                 // deja el listbox en el DOM aunque "cerrara"
-      disablePortal={!portalToBody}
+      onOpen={() => setOpen(Boolean(text) && options.length > 0)}
+      onClose={() => setOpen(false)}
+      keepMounted
+      disablePortal={disablePortal}     // 👈 SIN portal (si quieres probá poner false/true)
       options={options}
       loading={loading}
-      value={null}
-      isOptionEqualToValue={(o, v) => o?.id === v?.id}
-      filterOptions={(x) => x}
+      filterOptions={(x) => x}          // sin filtro extra del cliente
       getOptionLabel={(o) => (o && typeof o === "object" ? o.label ?? "" : "")}
-      inputValue={inputValue}
-      onInputChange={(e, v) => onInputChange(e, v)}
+      onInputChange={handleInput}
       onChange={(_, v) => v && onPick(v)}
       PopperComponent={ZPopper}
       PaperComponent={(paperProps) => (
@@ -74,7 +73,7 @@ export default function BuscarProducto({
           },
         },
       }}
-      noOptionsText={inputValue ? "Sin resultados" : "Escribí para buscar"}
+      noOptionsText={text ? "Sin resultados" : "Escribí para buscar"}
       renderInput={(params) => (
         <TextField
           {...params}
@@ -95,15 +94,13 @@ export default function BuscarProducto({
   );
 }
 
-BuscarProducto.propTypes = {
-  options: PropTypes.array.isRequired,    // [{id, label, ...}]
+BuscarProductoLite.propTypes = {
+  options: PropTypes.array.isRequired,
   loading: PropTypes.bool,
-  inputValue: PropTypes.string.isRequired,
-  onInputChange: PropTypes.func.isRequired,
+  onSearch: PropTypes.func,
   onPick: PropTypes.func.isRequired,
   label: PropTypes.string,
   placeholder: PropTypes.string,
   textFieldProps: PropTypes.object,
-  forceOpen: PropTypes.bool,
-  portalToBody: PropTypes.bool,
+  disablePortal: PropTypes.bool,
 };

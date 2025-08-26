@@ -1,121 +1,60 @@
 // assets/theme/base/colors.js
 
 const colors = {
-background: {
-  default: "#121212", // fondo general dark
-  sidenav: "#1a1a1a", // más oscuro, para diferenciar el lateral
-  paper: "#1a1a1a",   // usado para tarjetas, panels, etc.
-},
-
-text: {
-  main: "#ffffff",
-  secondary: "#9ca3af",  // texto secundario (labels, descripciones)
-  focus: "#ff9800", // un naranja más moderno
-},
-
-  primary: {
-    main: "#ff6f00",
-    focus: "#e65100",
+  background: {
+    default: "#f8fafc", // fondo general claro
+    sidenav: "#ffffff",
+    paper: "#ffffff",   // cards, inputs
   },
 
-  secondary: {
-    main: "#616161",
-    focus: "#424242",
+  text: {
+    main: "#111827",       // gris muy oscuro
+    secondary: "#6b7280",  // gris medio
+    focus: "#2563eb",      // azul foco
   },
 
-  info: {
-    main: "#0288d1",
-    focus: "#01579b",
-  },
+  primary:   { main: "#2563eb", focus: "#1e40af" },  // azul
+  secondary: { main: "#64748b", focus: "#475569" },  // gris azulado
+  info:      { main: "#06b6d4", focus: "#0e7490" },
+  success:   { main: "#10b981", focus: "#047857" },
+  warning:   { main: "#f97316", focus: "#c2410c" },
+  error:     { main: "#ef4444", focus: "#b91c1c" },
 
-  success: {
-    main: "#43a047",
-    focus: "#2e7d32",
-  },
+  dark:      { main: "#111827", focus: "#0b1220" },
+  light:     { main: "#f8fafc", focus: "#f1f5f9" },
 
-  warning: {
-    main: "#ffa000",
-    focus: "#f57c00",
-  },
+  white:     { main: "#ffffff", focus: "#f9fafb" },
+  black:     { main: "#000000" },
 
-  error: {
-    main: "#e53935",
-    focus: "#c62828",
-  },
-
-  dark: {
-    main: "#1c1c1c",
-    focus: "#000000",
-  },
-
-  light: {
-    main: "#f4f4f7",
-    focus: "#e0e0e0",
-  },
-
-  white: {
-    main: "#ffffff",
-    focus: "#f0f0f0",
-  },
-
-  black: {
-    main: "#000000",
-  },
-
-  transparent: {
-    main: "transparent",
-  },
+  transparent: { main: "transparent" },
 
   grey: {
     100: "#f5f5f5",
     200: "#eeeeee",
-    300: "#e0e0e0",
-    400: "#bdbdbd",
-    500: "#9e9e9e",
-    600: "#757575",
-    700: "#616161",
-    800: "#424242",
-    900: "#212121",
+    300: "#e5e7eb",
+    400: "#d1d5db",
+    500: "#9ca3af",
+    600: "#6b7280",
+    700: "#4b5563",
+    800: "#374151",
+    900: "#111827",
   },
 
-  divider: "#2a2a2a", // para bordes y outlines
+  divider: "#e5e7eb",
 
   tabs: {
-    indicator: {
-      boxShadow: "#ff6f00", // sombra del tab activo
-    },
+    indicator: { boxShadow: "#2563eb" },
   },
 
-gradients: {
-  primary: {
-    main: "#ff6f00",
-    state: "#e65100",
+  gradients: {
+    primary:  { main: "#93c5fd", state: "#2563eb" },
+    dark:     { main: "#1f2937", state: "#111827" },
+    info:     { main: "#67e8f9", state: "#06b6d4" },
+    success:  { main: "#86efac", state: "#10b981" },
+    warning:  { main: "#fdba74", state: "#f97316" },
+    error:    { main: "#fca5a5", state: "#ef4444" },
+    light:    { main: "#f8fafc", state: "#e5e7eb" },
   },
-  dark: {
-    main: "#2f2f2f",
-    state: "#1f1f1f",
-  },
-  info: {
-    main: "#0288d1",
-    state: "#01579b",
-  },
-  success: {
-    main: "#43a047",
-    state: "#2e7d32",
-  },
-  warning: {
-    main: "#ffa000",
-    state: "#f57c00",
-  },
-  error: {
-    main: "#e53935",
-    state: "#c62828",
-  },
-  light: {
-    main: "#f4f4f7",
-    state: "#e0e0e0",
-  },
-},
 };
 
 export default colors;
