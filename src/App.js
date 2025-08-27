@@ -3,7 +3,7 @@ import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { ThemeProvider } from "@mui/material/styles";
 import CssBaseline from "@mui/material/CssBaseline";
 import Sidenav from "examples/Sidenav";
-import Configurator from "examples/Configurator";
+
 import Dashboard from "layouts/dashboard";
 import theme from "assets/theme";
 import routes from "routes";
@@ -87,7 +87,7 @@ export default function App() {
             <Route path="/historial" element={<HistorialTabla/>} />
           </Routes>
 
-          <Configurator />
+         
 
       </ThemeProvider>
     </GoogleOAuthProvider>

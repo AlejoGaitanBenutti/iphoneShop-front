@@ -12,7 +12,7 @@ import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 
 import MDBox from "components/MDBox";
 import Breadcrumbs from "examples/Breadcrumbs";
-import NotificationItem from "examples/Items/NotificationItem";
+
 
 import {
   navbar,
@@ -72,9 +72,7 @@ function DashboardNavbar({ absolute, light, isMini, setIsAddingProduct }) {
       onClose={handleCloseMenu}
       sx={{ mt: 2 }}
     >
-      <NotificationItem icon={<Icon>email</Icon>} title="Check new messages" />
-      <NotificationItem icon={<Icon>podcasts</Icon>} title="Manage Podcast sessions" />
-      <NotificationItem icon={<Icon>shopping_cart</Icon>} title="Payment successfully completed" />
+    
     </Menu>
   );
 
@@ -123,23 +121,6 @@ function DashboardNavbar({ absolute, light, isMini, setIsAddingProduct }) {
         </IconButton>
       )}
 
-      <IconButton
-        size="small"
-        disableRipple
-        onClick={handleConfiguratorOpen}
-      >
-        <Icon sx={{ color: "#ffffff" }}>settings</Icon>
-      </IconButton>
-
-      <IconButton
-        size="small"
-        disableRipple
-        aria-controls="notification-menu"
-        aria-haspopup="true"
-        onClick={handleOpenMenu}
-      >
-        <Icon sx={{ color: "#ffffff" }}>notifications</Icon>
-      </IconButton>
 
       {renderMenu()}
     </MDBox>

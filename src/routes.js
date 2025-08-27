@@ -37,6 +37,13 @@ const routes = [
     route: "/inventario",
     icon: <Inventory2Icon />,
   },
+  {
+    type: "collapse",
+    name: "Clientes",
+    key: "clientes",
+    route: "/clientes",
+    icon: <Inventory2Icon />,
+  },
    {
     type: "collapse",
     name: "Historial",
