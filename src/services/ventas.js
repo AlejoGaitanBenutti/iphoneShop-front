@@ -29,3 +29,14 @@ export async function apiListarVentas() {
   if (!res.ok) throw new Error("No se pudieron listar ventas");
   return res.json();
 }
+
+export async function apiVerVenta(id) {
+  const res = await fetch(`${BASE}/ventas/index.php?accion=ver&id=${id}`, {
+    credentials: "include",
+  });
+  const data = await res.json().catch(() => null);
+  if (!res.ok || data?.success !== true) {
+    throw new Error(data?.error || `HTTP ${res.status}`);
+  }
+  return data; // { success: true, venta, items }
+}

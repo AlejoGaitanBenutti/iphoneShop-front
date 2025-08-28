@@ -1,3 +1,4 @@
+// features/productos/pages/InventarioPage.jsx
 import React, { useEffect, useMemo, useState } from "react";
 import PropTypes from "prop-types";
 import {
@@ -17,11 +18,10 @@ import FiberNewIcon from "@mui/icons-material/FiberNew";
 import HistoryIcon from "@mui/icons-material/History";
 import EditIcon from "@mui/icons-material/Edit";
 
-// MUY IMPORTANTE: usar el layout para que no tape el sidenav
 import DashboardLayout from "examples/LayoutContainers/DashboardLayout";
 
 // ================== helpers ==================
-const API_BASE = process.env.REACT_APP_API_URL || ""; // ej: http://localhost/iphoneShop-backend
+const API_BASE = process.env.REACT_APP_API_URL || "";
 const INVENTARIO_URL = `${API_BASE}/api/inventario/index.php`;
 const PRODUCTOS_URL  = `${API_BASE}/api/productos/index.php`;
 
@@ -38,6 +38,13 @@ const fUSD = new Intl.NumberFormat("es-AR", {
   currency: "USD",
   maximumFractionDigits: 0,
 });
+
+const fmtDate = (iso) => {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleDateString();
+};
 
 const batteryColor = (val) => {
   const n = Number(val ?? 0);
@@ -98,6 +105,11 @@ const productShape = PropTypes.shape({
   imagen_url: PropTypes.string,
   imei_1: PropTypes.string,
   imei_2: PropTypes.string,
+  // datos de permuta (vienen de la API)
+  recibido_valor: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+  recibido_fecha: PropTypes.string,
+  recibido_venta_id: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+  recibido_cliente: PropTypes.string,
 });
 
 const renderImeis = (p) => {
@@ -108,17 +120,28 @@ const renderImeis = (p) => {
   return i1 || i2;
 };
 
+const isPermuta = (p) => p?.origen === "permuta" || p?.recibido_valor != null;
+
 // ================== items ==================
 function ProductCard({ p, showCost, onEdit, onDelete }) {
   const precio = Number(p.precio_lista || 0);
   const costo = Number(p.costo || 0);
   const margen = precio - costo;
   const margenPct = costo > 0 ? Math.round((margen / costo) * 100) : 0;
+  const permuta = isPermuta(p);
 
   return (
-    <Card elevation={0} sx={{ borderRadius: 3, border: "1px solid", borderColor: "divider", height: "100%" }}>
+    <Card
+      elevation={0}
+      sx={{
+        borderRadius: 3,
+        border: "1px solid",
+        borderColor: "divider",
+        display: "flex",
+        flexDirection: "column", // << quita altura forzada y evita “aire”
+      }}
+    >
       <Box sx={{ p: 2, pb: 0 }}>
-        {/* Imagen más chica, siempre completa */}
         <Box
           sx={{
             borderRadius: 2,
@@ -126,9 +149,18 @@ function ProductCard({ p, showCost, onEdit, onDelete }) {
             bgcolor: "grey.100",
             display: "grid",
             placeItems: "center",
-            height: { xs: 180, sm: 200, md: 220, lg: 240, xl: 260 }, // << tamaño controlado
+            height: { xs: 180, sm: 200, md: 220, lg: 240, xl: 260 },
+            position: "relative",
           }}
         >
+          {permuta && (
+            <Chip
+              size="small"
+              label="Permuta"
+              color="warning"
+              sx={{ position: "absolute", top: 8, left: 8, fontWeight: 700 }}
+            />
+          )}
           <Box
             component="img"
             src={p.imagen_url || PLACEHOLDER}
@@ -138,14 +170,21 @@ function ProductCard({ p, showCost, onEdit, onDelete }) {
             sx={{
               maxWidth: "100%",
               maxHeight: "100%",
-              objectFit: "contain", // << muestra el equipo completo
+              objectFit: "contain",
               display: "block",
             }}
           />
         </Box>
       </Box>
 
-      <CardContent sx={{ pt: 1.5 }}>
+      <CardContent
+        sx={{
+          pt: 1.5,
+          display: "flex",
+          flexDirection: "column",
+          flexGrow: 1, // << para que el bloque “precio/acciones” baje cuando haya permuta
+        }}
+      >
         <Typography variant="subtitle1" fontWeight={700}>
           {p.modelo}
         </Typography>
@@ -179,6 +218,7 @@ function ProductCard({ p, showCost, onEdit, onDelete }) {
               color: "#fff",
             })}
           />
+          <Chip size="small" variant="outlined" label={p.status_stock || "stock"} />
         </Box>
 
         <Typography variant="caption" color="text.secondary">
@@ -199,13 +239,55 @@ function ProductCard({ p, showCost, onEdit, onDelete }) {
           </Typography>
         </Box>
 
+        {permuta && (
+          <Box
+            sx={{
+              mt: 1.25,
+              p: 1,
+              borderRadius: 2,
+              bgcolor: "warning.softBg",
+              border: "1px dashed",
+              borderColor: "warning.light",
+            }}
+          >
+            <Typography variant="caption" sx={{ fontWeight: 700, color: "warning.darker" }}>
+              Recibido por permuta
+            </Typography>
+            <Box sx={{ mt: 0.5 }}>
+              <Typography variant="body2">
+                Valor recibido: <b>{fUSD.format(Number(p.recibido_valor || 0))}</b>
+              </Typography>
+              <Typography variant="body2">
+                Fecha: <b>{fmtDate(p.recibido_fecha)}</b>
+              </Typography>
+              {p.recibido_cliente && (
+                <Typography variant="body2">
+                  Cliente: <b>{p.recibido_cliente}</b>
+                </Typography>
+              )}
+              {p.recibido_venta_id && (
+                <Typography variant="caption" color="text.secondary">
+                  Venta origen: #{p.recibido_venta_id}
+                </Typography>
+              )}
+            </Box>
+          </Box>
+        )}
+
         {showCost && (
           <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 1 }}>
             Costo {fUSD.format(costo)} · Margen {margenPct >= 0 ? `+${margenPct}%` : `${margenPct}%`}
           </Typography>
         )}
 
-        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mt: 1.5 }}>
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            mt: 1.5,
+          }}
+        >
           <Typography variant="h6" fontWeight={800} color="primary.main">
             {fUSD.format(precio)}
           </Typography>
@@ -245,6 +327,7 @@ function ProductRow({ p, showCost, onEdit, onDelete }) {
   const costo = Number(p.costo || 0);
   const margen = precio - costo;
   const margenPct = costo > 0 ? Math.round((margen / costo) * 100) : 0;
+  const permuta = isPermuta(p);
 
   return (
     <Box
@@ -267,7 +350,10 @@ function ProductRow({ p, showCost, onEdit, onDelete }) {
         sx={{ width: 64, height: 64, borderRadius: 2 }}
       />
       <Box sx={{ flex: 1, minWidth: 220 }}>
-        <Typography fontWeight={700}>{p.modelo}</Typography>
+        <Typography fontWeight={700} sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+          {p.modelo}
+          {permuta && <Chip size="small" label="Permuta" color="warning" />}
+        </Typography>
         <Typography variant="body2" color="text.secondary">
           {p.color}
         </Typography>
@@ -279,7 +365,16 @@ function ProductRow({ p, showCost, onEdit, onDelete }) {
         >
           IMEI: {renderImeis(p)}
         </Typography>
+
+        {permuta && (
+          <Typography variant="caption" sx={{ display: "block", mt: 0.25 }}>
+            Permuta: {fUSD.format(Number(p.recibido_valor || 0))} · {fmtDate(p.recibido_fecha)}
+            {p.recibido_cliente ? ` · ${p.recibido_cliente}` : ""}
+            {p.recibido_venta_id ? ` · Venta #${p.recibido_venta_id}` : ""}
+          </Typography>
+        )}
       </Box>
+
       <Box sx={{ width: 110 }}>
         <Typography variant="body2">{p.almacenamiento_gb}GB</Typography>
       </Box>
@@ -346,7 +441,7 @@ ProductRow.propTypes = {
 
 // ================== página ==================
 export default function InventarioPage() {
-  const [view, setView] = useState("grid"); // 'grid' | 'list'
+  const [view, setView] = useState("grid");
   const [query, setQuery] = useState("");
   const [modelo, setModelo] = useState("all");
   const [color, setColor] = useState("all");
@@ -366,7 +461,6 @@ export default function InventarioPage() {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
 
-  // Diálogos
   const [editOpen, setEditOpen] = useState(false);
   const [editData, setEditData] = useState(null);
   const [delOpen, setDelOpen] = useState(false);
@@ -448,7 +542,6 @@ export default function InventarioPage() {
     }
   }
 
-  // ---- fetch server-side filtering
   useEffect(() => {
     const ctrl = new AbortController();
     setLoading(true);
@@ -496,7 +589,6 @@ export default function InventarioPage() {
     return () => ctrl.abort();
   }, [query, modelo, color, almacenamiento, estado, minBat]);
 
-  // catálogos (desde la data actual)
   const modelos = useMemo(() => Array.from(new Set(data.map((d) => d.modelo))).sort(), [data]);
   const colores = useMemo(() => Array.from(new Set(data.map((d) => d.color))).sort(), [data]);
   const almacs = useMemo(
@@ -504,7 +596,6 @@ export default function InventarioPage() {
     [data]
   );
 
-  // front styles helper
   const controlSx = (minWidth = 160) => ({
     minWidth,
     bgcolor: "background.paper",
@@ -545,11 +636,11 @@ export default function InventarioPage() {
             {kpiCard("Usados", kpis.usados, HistoryIcon, "secondary")}
           </Grid>
 
-          {showCost && (
-            <Grid item xs={12} sm={6} md={3}>
-              {kpiCard("Valor Inventario (costo)", fUSD.format(kpis.valor_costo), PhoneIphoneIcon, "info")}
-            </Grid>
-          )}
+        {showCost && (
+          <Grid item xs={12} sm={6} md={3}>
+            {kpiCard("Valor Inventario (costo)", fUSD.format(kpis.valor_costo), PhoneIphoneIcon, "info")}
+          </Grid>
+        )}
         </Grid>
 
         {/* Filtros */}
@@ -558,7 +649,7 @@ export default function InventarioPage() {
             <TextField
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Buscar por modelo, color o SKU…"
+              placeholder="Buscar por modelo, color, SKU o IMEI…"
               size="small"
               fullWidth
               variant="outlined"
@@ -713,7 +804,7 @@ export default function InventarioPage() {
           </Grid>
         )}
 
-        {/* Dialogo Editar */}
+        {/* Editar */}
         <Dialog open={editOpen} onClose={closeDialogs} fullWidth maxWidth="sm">
           <DialogTitle>Editar producto #{editData?.id}</DialogTitle>
           <DialogContent dividers sx={{ display: "grid", gap: 2, pt: 2 }}>
@@ -746,7 +837,7 @@ export default function InventarioPage() {
           </DialogActions>
         </Dialog>
 
-        {/* Confirmar eliminar */}
+        {/* Eliminar */}
         <Dialog open={delOpen} onClose={closeDialogs}>
           <DialogTitle>Eliminar producto</DialogTitle>
           <DialogContent dividers>

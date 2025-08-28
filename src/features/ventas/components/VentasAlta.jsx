@@ -23,6 +23,7 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
+  ListSubheader,
 } from "@mui/material";
 import { useEffect, useMemo, useRef, useState } from "react";
 import DeleteIcon from "@mui/icons-material/Delete";
@@ -35,7 +36,6 @@ import HandshakeIcon from "@mui/icons-material/Handshake";
 import AddIcon from "@mui/icons-material/Add";
 import PropTypes from "prop-types";
 
-// 🔁 Buscador pro
 import BuscarProductoPro from "./BuscarProductoPro";
 
 import {
@@ -60,6 +60,7 @@ const selectFixProps = {
           border: "1px solid",
           borderColor: "divider",
           borderRadius: 2,
+          maxHeight: 420,
         },
       },
     },
@@ -74,13 +75,17 @@ const selectFixProps = {
   },
 };
 
-function currency(n) {
-  const x = Number(n || 0);
-  return x.toLocaleString(undefined, {
+function n2(v) {
+  const x = Number(v || 0);
+  return Number.isFinite(x) ? x : 0;
+}
+const f2 = (n) =>
+  n2(n).toLocaleString(undefined, {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
-}
+const usd = (n) => `US$ ${f2(n)}`;
+const ars = (n) => `ARS ${f2(n)}`;
 
 const METODOS = [
   { value: "efectivo", label: "Efectivo" },
@@ -89,15 +94,44 @@ const METODOS = [
   { value: "transferencia", label: "Transferencia" },
 ];
 
-// Genera la etiqueta legible del item agregado al carrito
+const MONEDAS = [
+  { value: "USD", label: "USD" },
+  { value: "ARS", label: "ARS" },
+];
+
+/* ======= Listas de modelos ======= */
+const IPHONE_MODELOS = [
+  "iPhone X","iPhone XR","iPhone XS","iPhone XS Max",
+  "iPhone 11","iPhone 11 Pro","iPhone 11 Pro Max",
+  "iPhone 12 mini","iPhone 12","iPhone 12 Pro","iPhone 12 Pro Max",
+  "iPhone 13 mini","iPhone 13","iPhone 13 Pro","iPhone 13 Pro Max",
+  "iPhone 14","iPhone 14 Plus","iPhone 14 Pro","iPhone 14 Pro Max",
+  "iPhone 15","iPhone 15 Plus","iPhone 15 Pro","iPhone 15 Pro Max",
+  "iPhone 16","iPhone 16 Plus","iPhone 16 Pro","iPhone 16 Pro Max",
+];
+const WATCH_MODELOS = [
+  "Apple Watch Series 3","Apple Watch Series 4","Apple Watch Series 5",
+  "Apple Watch Series 6","Apple Watch SE (1ª gen)","Apple Watch SE (2ª gen)",
+  "Apple Watch Series 7","Apple Watch Series 8","Apple Watch Series 9",
+  "Apple Watch Ultra","Apple Watch Ultra 2",
+];
+const MACBOOK_MODELOS = [
+  'MacBook Air 13" (Intel)','MacBook Air 13" M1','MacBook Air 13" M2',
+  'MacBook Air 15" M2','MacBook Air 13" M3','MacBook Air 15" M3',
+  'MacBook Pro 13" (Intel)','MacBook Pro 13" M1',
+  'MacBook Pro 14" M1 Pro','MacBook Pro 14" M2 Pro','MacBook Pro 14" M3 Pro',
+  'MacBook Pro 16" M1 Pro/Max','MacBook Pro 16" M2 Pro/Max','MacBook Pro 16" M3 Pro/Max',
+];
+
+/* Almacenamientos fijos */
+const ALMACENAMIENTOS = [32, 64, 128, 256, 512, 1000];
+
+// etiqueta legible del item
 const makeLabel = (o) =>
   `${o.modelo ?? ""} ${o.almacenamiento_gb ?? ""}GB • ${o.color ?? ""}${
     o.bateria_salud ? ` • Bat ${o.bateria_salud}%` : ""
   }${o.sku ? ` • #${o.sku}` : ""}`.trim();
 
-// =======================================================
-// Componente
-// =======================================================
 export default function VentasAlta({ onCreated }) {
   // --------- búsqueda productos
   const [query, setQuery] = useState("");
@@ -106,8 +140,7 @@ export default function VentasAlta({ onCreated }) {
   const tRef = useRef(null);
 
   // --------- carrito
-  // guardamos datos para la confirmación (modelo, gb, color, estado, imei)
-  const [items, setItems] = useState([]); // [{ id, label, precio_unit, modelo, almacenamiento_gb, color, estado, imei_1, imei_2 }]
+  const [items, setItems] = useState([]);
   const addItem = (opt) => {
     if (!opt) return;
     if (items.some((it) => it.id === opt.id)) {
@@ -130,18 +163,17 @@ export default function VentasAlta({ onCreated }) {
     ]);
     setQuery("");
   };
-  const removeItem = (id) =>
-    setItems((prev) => prev.filter((it) => it.id !== id));
+  const removeItem = (id) => setItems((prev) => prev.filter((it) => it.id !== id));
 
-  // --------- totales básicos
+  // --------- totales (USD)
   const [descuento, setDescuento] = useState(0);
   const [impuestos, setImpuestos] = useState(0);
   const subtotal = useMemo(
-    () => items.reduce((acc, it) => acc + Number(it.precio_unit || 0), 0),
+    () => items.reduce((acc, it) => acc + n2(it.precio_unit), 0),
     [items]
   );
   const total = useMemo(
-    () => Math.max(0, Number(subtotal) - Number(descuento || 0) + Number(impuestos || 0)),
+    () => Math.max(0, n2(subtotal) - n2(descuento) + n2(impuestos)),
     [subtotal, descuento, impuestos]
   );
 
@@ -156,21 +188,62 @@ export default function VentasAlta({ onCreated }) {
     imei_2: "",
     valor_toma: 0,
     notas: "",
+    bateria_salud: "", // NUEVO: salud de batería %
   });
-  const valorToma = tradeInEnabled ? Number(tradeIn.valor_toma || 0) : 0;
+  const valorToma = tradeInEnabled ? n2(tradeIn.valor_toma) : 0;
 
   // --------- pagos múltiples
-  const [pagos, setPagos] = useState([{ id: 1, metodo: "efectivo", monto: "" }]);
+  const [tasaArsUsd, setTasaArsUsd] = useState(1355);
+  const [pagos, setPagos] = useState([
+    { id: 1, metodo: "efectivo", moneda: "USD", monto: "" },
+  ]);
   const addPago = () => {
     const maxId = pagos.reduce((m, p) => Math.max(m, p.id), 0);
-    setPagos((prev) => [...prev, { id: maxId + 1, metodo: "efectivo", monto: "" }]);
+    setPagos((prev) => [
+      ...prev,
+      { id: maxId + 1, metodo: "efectivo", moneda: "USD", monto: "" },
+    ]);
   };
   const removePago = (id) => setPagos((prev) => prev.filter((p) => p.id !== id));
   const updatePago = (id, patch) =>
-    setPagos((prev) => prev.map((p) => (p.id === id ? { ...p, ...patch } : p)));
+    setPagos((prev) =>
+      prev.map((p) => {
+        if (p.id !== id) return p;
+        const next = { ...p, ...patch };
+        if (next.moneda === "ARS" && typeof next.tasa !== "undefined") {
+          const t = Number(next.tasa || 0);
+          if (t > 0) setTasaArsUsd(t);
+        }
+        return next;
+      })
+    );
+
+  // helpers de conversión
+  const pagoUSD = (p) =>
+    p.moneda === "USD" ? n2(p.monto) : n2(p.monto) / (n2(p.tasa || tasaArsUsd) || 1);
   const totalACobrar = useMemo(() => Math.max(0, total - valorToma), [total, valorToma]);
-  const totalPagado = useMemo(() => pagos.reduce((a, p) => a + Number(p.monto || 0), 0), [pagos]);
-  const restante = useMemo(() => Number((totalACobrar - totalPagado).toFixed(2)), [totalACobrar, totalPagado]);
+  const totalPagadoUSD = useMemo(
+    () => pagos.reduce((a, p) => a + pagoUSD(p), 0),
+    [pagos, tasaArsUsd]
+  );
+  const restanteUSD = useMemo(
+    () => Number((totalACobrar - totalPagadoUSD).toFixed(2)),
+    [totalACobrar, totalPagadoUSD]
+  );
+
+  // equivalentes ARS
+  const totalACobrarARS = useMemo(
+    () => totalACobrar * n2(tasaArsUsd),
+    [totalACobrar, tasaArsUsd]
+  );
+  const totalPagadoARS = useMemo(
+    () => totalPagadoUSD * n2(tasaArsUsd),
+    [totalPagadoUSD, tasaArsUsd]
+  );
+  const restanteARS = useMemo(
+    () => restanteUSD * n2(tasaArsUsd),
+    [restanteUSD, tasaArsUsd]
+  );
 
   // --------- cliente
   const [cliente, setCliente] = useState({
@@ -197,14 +270,13 @@ export default function VentasAlta({ onCreated }) {
       try {
         setLoadingSearch(true);
         const data = await apiProductosDisponibles(query);
-        // Pasamos info para dropdown y carrito
         setOpciones(
           data.map((p) => ({
             id: p.id,
             modelo: p.modelo,
             almacenamiento_gb: p.almacenamiento_gb,
             color: p.color,
-            estado: p.estado, // por si tu API lo envía
+            estado: p.estado,
             bateria_salud: p.bateria_salud,
             imei_1: p.imei_1,
             imei_2: p.imei_2,
@@ -235,7 +307,7 @@ export default function VentasAlta({ onCreated }) {
         for (const v of data) {
           if ((v.fecha_venta || "").slice(0, 10) === hoy) {
             cant += 1;
-            totalH += Number(v.total || 0);
+            totalH += n2(v.total);
           }
         }
         setVentasHoy({ total: totalH, cantidad: cant });
@@ -256,13 +328,15 @@ export default function VentasAlta({ onCreated }) {
       setSnack({ sev: "warning", msg: "Agregá al menos un pago" });
       return;
     }
-    if (Math.abs(restante) > 0.01) {
+    if (Math.abs(restanteUSD) > 0.01) {
       setSnack({
         sev: "warning",
         msg:
-          restante > 0
-            ? `Falta imputar $ ${currency(restante)}`
-            : `Hay vuelto/extra imputado por $ ${currency(-restante)}`,
+          restanteUSD > 0
+            ? `Falta imputar ${usd(restanteUSD)} (≈ ${ars(restanteARS)})`
+            : `Hay vuelto/extra imputado por ${usd(-restanteUSD)} (≈ ${ars(
+                -restanteARS
+              )})`,
       });
       return;
     }
@@ -283,12 +357,12 @@ export default function VentasAlta({ onCreated }) {
         },
         items: items.map((it) => ({
           producto_id: it.id,
-          precio_unit: Number(it.precio_unit || 0),
+          precio_unit: n2(it.precio_unit),
         })),
-        descuento: Number(descuento || 0),
-        impuestos: Number(impuestos || 0),
-        subtotal: Number(subtotal || 0),
-        total: Number(total || 0),
+        descuento: n2(descuento),
+        impuestos: n2(impuestos),
+        subtotal: n2(subtotal),
+        total: n2(total),
         trade_in: tradeInEnabled
           ? {
               modelo: (tradeIn.modelo || "").trim() || null,
@@ -299,22 +373,30 @@ export default function VentasAlta({ onCreated }) {
               condicion: tradeIn.condicion || "usado",
               imei_1: (tradeIn.imei_1 || "").trim() || null,
               imei_2: (tradeIn.imei_2 || "").trim() || null,
-              valor_toma: Number(tradeIn.valor_toma || 0),
+              valor_toma: n2(tradeIn.valor_toma),
               notas: (tradeIn.notas || "").trim() || null,
+              bateria_salud:
+                tradeIn.bateria_salud === "" ? null : Number(tradeIn.bateria_salud),
             }
           : null,
         pagos: pagos
-          .filter((p) => Number(p.monto || 0) > 0)
-          .map((p) => ({ metodo: p.metodo, monto: Number(p.monto || 0) })),
-        total_a_cobrar: Number(totalACobrar || 0),
-        total_pagado: Number(totalPagado || 0),
+          .filter((p) => n2(p.monto) > 0)
+          .map((p) => ({
+            metodo: p.metodo,
+            moneda: p.moneda,
+            monto: n2(p.monto),
+            tasa: p.moneda === "ARS" ? n2(p.tasa || tasaArsUsd) : null,
+          })),
+        total_a_cobrar: n2(totalACobrar),
+        total_pagado: n2(totalPagadoUSD),
+        tasa_ars_usd: n2(tasaArsUsd),
       };
 
       const res = await apiCrearVenta(payload);
 
       setSnack({
         sev: "success",
-        msg: `Venta #${res?.venta_id ?? "—"} registrada (Total $ ${currency(
+        msg: `Venta #${res?.venta_id ?? "—"} registrada (Total ${usd(
           res?.total ?? total
         )})`,
       });
@@ -323,7 +405,7 @@ export default function VentasAlta({ onCreated }) {
       setItems([]);
       setDescuento(0);
       setImpuestos(0);
-      setPagos([{ id: 1, metodo: "efectivo", monto: "" }]);
+      setPagos([{ id: 1, metodo: "efectivo", moneda: "USD", monto: "" }]);
       setTradeInEnabled(false);
       setTradeIn({
         modelo: "",
@@ -334,6 +416,7 @@ export default function VentasAlta({ onCreated }) {
         imei_2: "",
         valor_toma: 0,
         notas: "",
+        bateria_salud: "",
       });
       setCliente({
         nombre: "",
@@ -353,7 +436,7 @@ export default function VentasAlta({ onCreated }) {
         for (const v of data) {
           if ((v.fecha_venta || "").slice(0, 10) === hoy) {
             cant += 1;
-            totalH += Number(v.total || 0);
+            totalH += n2(v.total);
           }
         }
         setVentasHoy({ total: totalH, cantidad: cant });
@@ -369,6 +452,14 @@ export default function VentasAlta({ onCreated }) {
       setConfirmOpen(false);
     }
   }
+
+  // helper: clamp 0..100 para el input de batería
+  const clampBattery = (val) => {
+    if (val === "" || val === null) return "";
+    const n = Number(val);
+    if (!Number.isFinite(n)) return "";
+    return Math.max(0, Math.min(100, Math.round(n)));
+  };
 
   return (
     <Box sx={{ maxWidth: 1000, mx: "auto" }}>
@@ -390,7 +481,7 @@ export default function VentasAlta({ onCreated }) {
           Elegí los equipos a vender, cargá datos del cliente, pagos y (si aplica) parte de pago.
         </Typography>
 
-        {/* ⚠️ ahora valida y abre confirmación */}
+        {/* valida y abre confirmación */}
         <form onSubmit={handleSubmitAsk}>
           <Stack spacing={2}>
             {/* Buscar y agregar productos */}
@@ -425,9 +516,7 @@ export default function VentasAlta({ onCreated }) {
               </Box>
 
               {items.length === 0 ? (
-                <Box sx={{ p: 2, color: "text.secondary" }}>
-                  No agregaste productos todavía.
-                </Box>
+                <Box sx={{ p: 2, color: "text.secondary" }}>No agregaste productos todavía.</Box>
               ) : (
                 <Stack sx={{ p: 1.5 }} spacing={1}>
                   {items.map((it) => (
@@ -440,7 +529,7 @@ export default function VentasAlta({ onCreated }) {
                           </Typography>
                         </Box>
                         <TextField
-                          label="Precio de venta"
+                          label="Precio de venta (USD)"
                           type="number"
                           inputProps={{ step: "0.01", min: 0 }}
                           value={it.precio_unit}
@@ -450,7 +539,7 @@ export default function VentasAlta({ onCreated }) {
                               prev.map((x) => (x.id === it.id ? { ...x, precio_unit: v } : x))
                             );
                           }}
-                          sx={{ width: 180 }}
+                          sx={{ width: 200 }}
                           {...selectFixProps}
                         />
                         <IconButton color="error" onClick={() => removeItem(it.id)}>
@@ -555,12 +644,7 @@ export default function VentasAlta({ onCreated }) {
                   </Typography>
                 </Stack>
                 <FormControlLabel
-                  control={
-                    <Switch
-                      checked={tradeInEnabled}
-                      onChange={(e) => setTradeInEnabled(e.target.checked)}
-                    />
-                  }
+                  control={<Switch checked={tradeInEnabled} onChange={(e) => setTradeInEnabled(e.target.checked)} />}
                   label="Recibe equipo como parte de pago"
                 />
               </Box>
@@ -568,28 +652,66 @@ export default function VentasAlta({ onCreated }) {
               {tradeInEnabled && (
                 <Box sx={{ p: 2 }}>
                   <Grid container spacing={2}>
-                    <Grid item xs={12} md={4}>
-                      <TextField
-                        label="Modelo"
-                        fullWidth
-                        value={tradeIn.modelo}
-                        onChange={(e) => setTradeIn((t) => ({ ...t, modelo: e.target.value }))}
-                        {...selectFixProps}
-                      />
+                    {/* MODELO */}
+                    <Grid item xs={12} md={5}>
+                      <FormControl fullWidth {...selectFixProps}>
+                        <InputLabel>Modelo (iPhone / Watch / MacBook)</InputLabel>
+                        <Select
+                          label="Modelo (iPhone / Watch / MacBook)"
+                          value={tradeIn.modelo || ""}
+                          onChange={(e) =>
+                            setTradeIn((t) => ({ ...t, modelo: e.target.value }))
+                          }
+                          renderValue={(v) => v || ""}
+                        >
+                          <ListSubheader disableSticky>iPhone</ListSubheader>
+                          {IPHONE_MODELOS.map((m) => (
+                            <MenuItem key={`iph-${m}`} value={m}>
+                              {m}
+                            </MenuItem>
+                          ))}
+                          <ListSubheader disableSticky>Apple Watch</ListSubheader>
+                          {WATCH_MODELOS.map((m) => (
+                            <MenuItem key={`wat-${m}`} value={m}>
+                              {m}
+                            </MenuItem>
+                          ))}
+                          <ListSubheader disableSticky>MacBook</ListSubheader>
+                          {MACBOOK_MODELOS.map((m) => (
+                            <MenuItem key={`mac-${m}`} value={m}>
+                              {m}
+                            </MenuItem>
+                          ))}
+                        </Select>
+                      </FormControl>
                     </Grid>
-                    <Grid item xs={12} md={2}>
-                      <TextField
-                        label="Almacenamiento (GB)"
-                        type="number"
-                        fullWidth
-                        value={tradeIn.almacenamiento_gb}
-                        onChange={(e) =>
-                          setTradeIn((t) => ({ ...t, almacenamiento_gb: e.target.value }))
-                        }
-                        {...selectFixProps}
-                      />
-                    </Grid>
+
+                    {/* ALMACENAMIENTO */}
                     <Grid item xs={12} md={3}>
+                      <FormControl fullWidth {...selectFixProps}>
+                        <InputLabel>Almacenamiento (GB)</InputLabel>
+                        <Select
+                          label="Almacenamiento (GB)"
+                          value={tradeIn.almacenamiento_gb || ""}
+                          onChange={(e) =>
+                            setTradeIn((t) => ({
+                              ...t,
+                              almacenamiento_gb: e.target.value,
+                            }))
+                          }
+                          renderValue={(v) => (v ? `${v}` : "")}
+                        >
+                          {ALMACENAMIENTOS.map((g) => (
+                            <MenuItem key={g} value={g}>
+                              {g === 1000 ? "1000 (1 TB)" : g}
+                            </MenuItem>
+                          ))}
+                        </Select>
+                      </FormControl>
+                    </Grid>
+
+                    {/* COLOR */}
+                    <Grid item xs={12} md={4}>
                       <TextField
                         label="Color"
                         fullWidth
@@ -598,6 +720,8 @@ export default function VentasAlta({ onCreated }) {
                         {...selectFixProps}
                       />
                     </Grid>
+
+                    {/* CONDICIÓN */}
                     <Grid item xs={12} md={3}>
                       <FormControl fullWidth {...selectFixProps}>
                         <InputLabel>Condición</InputLabel>
@@ -611,6 +735,8 @@ export default function VentasAlta({ onCreated }) {
                         </Select>
                       </FormControl>
                     </Grid>
+
+                    {/* IMEIs */}
                     <Grid item xs={12} md={3}>
                       <TextField
                         label="IMEI 1"
@@ -629,9 +755,29 @@ export default function VentasAlta({ onCreated }) {
                         {...selectFixProps}
                       />
                     </Grid>
+
+                    {/* Salud de Batería (NUEVO) */}
                     <Grid item xs={12} md={3}>
                       <TextField
-                        label="Valor de toma ($)"
+                        label="Salud de batería (%)"
+                        type="number"
+                        inputProps={{ step: 1, min: 0, max: 100 }}
+                        fullWidth
+                        value={tradeIn.bateria_salud}
+                        onChange={(e) =>
+                          setTradeIn((t) => ({
+                            ...t,
+                            bateria_salud: clampBattery(e.target.value),
+                          }))
+                        }
+                        {...selectFixProps}
+                      />
+                    </Grid>
+
+                    {/* Valor toma + Notas */}
+                    <Grid item xs={12} md={3}>
+                      <TextField
+                        label="Valor de toma (USD)"
                         type="number"
                         inputProps={{ step: "0.01", min: 0 }}
                         fullWidth
@@ -640,7 +786,7 @@ export default function VentasAlta({ onCreated }) {
                         {...selectFixProps}
                       />
                     </Grid>
-                    <Grid item xs={12} md={3}>
+                    <Grid item xs={12}>
                       <TextField
                         label="Notas"
                         fullWidth
@@ -666,84 +812,146 @@ export default function VentasAlta({ onCreated }) {
                   display: "flex",
                   alignItems: "center",
                   gap: 1,
+                  justifyContent: "space-between",
                 }}
               >
-                <ReceiptLongIcon color="warning" />
-                <Typography fontWeight={700} sx={{ color: "text.main" }}>
-                  Pagos
-                </Typography>
+                <Stack direction="row" spacing={1} alignItems="center">
+                  <ReceiptLongIcon color="warning" />
+                  <Typography fontWeight={700} sx={{ color: "text.main" }}>
+                    Pagos
+                  </Typography>
+                </Stack>
+                <Chip
+                  size="small"
+                  label={`Blue/ref.: 1 USD = ${f2(tasaArsUsd)}`}
+                  sx={{ bgcolor: "warning.softBg", color: "warning.darker", fontWeight: 600 }}
+                />
               </Box>
 
               <Stack spacing={1.25} sx={{ p: 2 }}>
-                {/* Filas de pago */}
-                {pagos.map((p) => (
-                  <Paper key={p.id} variant="outlined" sx={{ p: 1.5, borderRadius: 2 }}>
-                    <Grid container spacing={2} alignItems="center">
-                      <Grid item xs={12} md={5}>
-                        <FormControl fullWidth {...selectFixProps}>
-                          <InputLabel>Método</InputLabel>
-                          <Select
-                            label="Método"
-                            value={p.metodo}
-                            onChange={(e) => updatePago(p.id, { metodo: e.target.value })}
-                          >
-                            {METODOS.map((m) => (
-                              <MenuItem key={m.value} value={m.value}>
-                                {m.label}
-                              </MenuItem>
-                            ))}
-                          </Select>
-                        </FormControl>
+                {pagos.map((p) => {
+                  const eqUSD =
+                    p.moneda === "ARS"
+                      ? n2(p.monto) / (n2(p.tasa || tasaArsUsd) || 1)
+                      : n2(p.monto);
+
+                  return (
+                    <Paper key={p.id} variant="outlined" sx={{ p: 1.5, borderRadius: 2 }}>
+                      <Grid container spacing={2} alignItems="center">
+                        <Grid item xs={12} md={3}>
+                          <FormControl fullWidth {...selectFixProps}>
+                            <InputLabel>Método</InputLabel>
+                            <Select
+                              label="Método"
+                              value={p.metodo}
+                              onChange={(e) => updatePago(p.id, { metodo: e.target.value })}
+                            >
+                              {METODOS.map((m) => (
+                                <MenuItem key={m.value} value={m.value}>
+                                  {m.label}
+                                </MenuItem>
+                              ))}
+                            </Select>
+                          </FormControl>
+                        </Grid>
+
+                        <Grid item xs={6} md={2}>
+                          <FormControl fullWidth {...selectFixProps}>
+                            <InputLabel>Moneda</InputLabel>
+                            <Select
+                              label="Moneda"
+                              value={p.moneda}
+                              onChange={(e) =>
+                                updatePago(p.id, {
+                                  moneda: e.target.value,
+                                  ...(e.target.value === "USD" ? { tasa: undefined } : null),
+                                })
+                              }
+                            >
+                              {MONEDAS.map((m) => (
+                                <MenuItem key={m.value} value={m.value}>
+                                  {m.label}
+                                </MenuItem>
+                              ))}
+                            </Select>
+                          </FormControl>
+                        </Grid>
+
+                        <Grid item xs={6} md={3}>
+                          <TextField
+                            label={p.moneda === "ARS" ? "Monto (ARS)" : "Monto (USD)"}
+                            type="number"
+                            inputProps={{ step: "0.01", min: 0 }}
+                            fullWidth
+                            value={p.monto}
+                            onChange={(e) => updatePago(p.id, { monto: e.target.value })}
+                            {...selectFixProps}
+                          />
+                        </Grid>
+
+                        {p.moneda === "ARS" && (
+                          <Grid item xs={12} md={2}>
+                            <TextField
+                              label="Tasa ARS→USD"
+                              type="number"
+                              inputProps={{ step: "0.01", min: 0 }}
+                              fullWidth
+                              value={p.tasa ?? tasaArsUsd}
+                              onChange={(e) => updatePago(p.id, { tasa: e.target.value })}
+                              {...selectFixProps}
+                            />
+                          </Grid>
+                        )}
+
+                        <Grid
+                          item
+                          xs={12}
+                          md={2}
+                          sx={{ display: "flex", justifyContent: { xs: "flex-start", md: "flex-end" } }}
+                        >
+                          <IconButton color="error" onClick={() => removePago(p.id)} aria-label="Quitar pago">
+                            <DeleteIcon />
+                          </IconButton>
+                        </Grid>
+
+                        <Grid item xs={12}>
+                          <Typography variant="caption" color="text.secondary">
+                            Equivale a: <strong>{usd(eqUSD)}</strong>
+                          </Typography>
+                        </Grid>
                       </Grid>
-                      <Grid item xs={12} md={5}>
-                        <TextField
-                          label="Monto"
-                          type="number"
-                          inputProps={{ step: "0.01", min: 0 }}
-                          fullWidth
-                          value={p.monto}
-                          onChange={(e) => updatePago(p.id, { monto: e.target.value })}
-                          {...selectFixProps}
-                        />
-                      </Grid>
-                      <Grid
-                        item
-                        xs={12}
-                        md={2}
-                        sx={{ display: "flex", justifyContent: { xs: "flex-start", md: "flex-end" } }}
-                      >
-                        <IconButton color="error" onClick={() => removePago(p.id)} aria-label="Quitar pago">
-                          <DeleteIcon />
-                        </IconButton>
-                      </Grid>
-                    </Grid>
-                  </Paper>
-                ))}
+                    </Paper>
+                  );
+                })}
 
                 <Button startIcon={<AddIcon />} onClick={addPago}>
                   Agregar pago
                 </Button>
 
                 {/* Resumen de pagos */}
-                <Stack direction="row" spacing={2} flexWrap="wrap">
-                  <Chip label={`Total a cobrar: $ ${currency(totalACobrar)}`} />
-                  <Chip label={`Pagado: $ ${currency(totalPagado)}`} color="success" variant="outlined" />
+                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                  <Chip label={`Total a cobrar: ${usd(totalACobrar)}  •  ≈ ${ars(totalACobrarARS)}`} />
+                  <Chip
+                    label={`Pagado: ${usd(totalPagadoUSD)}  •  ≈ ${ars(totalPagadoARS)}`}
+                    color="success"
+                    variant="outlined"
+                  />
                   <Chip
                     label={
-                      restante === 0
+                      restanteUSD === 0
                         ? "OK sin saldo"
-                        : restante > 0
-                        ? `Falta: $ ${currency(restante)}`
-                        : `Vuelto: $ ${currency(-restante)}`
+                        : restanteUSD > 0
+                        ? `Falta: ${usd(restanteUSD)}  (≈ ${ars(restanteARS)})`
+                        : `Vuelto: ${usd(-restanteUSD)}  (≈ ${ars(-restanteARS)})`
                     }
-                    color={restante === 0 ? "success" : restante > 0 ? "warning" : "info"}
-                    variant={restante === 0 ? "filled" : "outlined"}
+                    color={restanteUSD === 0 ? "success" : restanteUSD > 0 ? "warning" : "info"}
+                    variant={restanteUSD === 0 ? "filled" : "outlined"}
                   />
                 </Stack>
               </Stack>
             </Box>
 
-            {/* Totales globales */}
+            {/* Totales (USD) */}
             <Box sx={{ border: "1px solid", borderColor: "divider", borderRadius: 2 }}>
               <Box
                 sx={{
@@ -755,14 +963,14 @@ export default function VentasAlta({ onCreated }) {
                 }}
               >
                 <Typography fontWeight={700} sx={{ color: "text.main" }}>
-                  Totales
+                  Totales (USD)
                 </Typography>
               </Box>
               <Box sx={{ p: 2 }}>
                 <Grid container spacing={2}>
                   <Grid item xs={12} md={3}>
                     <TextField
-                      label="Descuento"
+                      label="Descuento (USD)"
                       type="number"
                       inputProps={{ step: "0.01", min: 0 }}
                       fullWidth
@@ -773,7 +981,7 @@ export default function VentasAlta({ onCreated }) {
                   </Grid>
                   <Grid item xs={12} md={3}>
                     <TextField
-                      label="Impuestos"
+                      label="Impuestos (USD)"
                       type="number"
                       inputProps={{ step: "0.01", min: 0 }}
                       fullWidth
@@ -794,7 +1002,7 @@ export default function VentasAlta({ onCreated }) {
                           Subtotal
                         </Typography>
                         <Typography sx={{ color: "text.main" }} variant="h6">
-                          $ {currency(subtotal)}
+                          {usd(subtotal)}
                         </Typography>
                       </Stack>
                       <Stack alignItems="flex-end">
@@ -802,7 +1010,7 @@ export default function VentasAlta({ onCreated }) {
                           Total
                         </Typography>
                         <Typography variant="h5" fontWeight={800} color="warning.main">
-                          $ {currency(total)}
+                          {usd(total)}
                         </Typography>
                       </Stack>
                     </Stack>
@@ -811,7 +1019,7 @@ export default function VentasAlta({ onCreated }) {
               </Box>
             </Box>
 
-            {/* Submit -> abre confirmación */}
+            {/* Submit */}
             <Button
               type="submit"
               variant="contained"
@@ -836,9 +1044,7 @@ export default function VentasAlta({ onCreated }) {
                   Total ventas hoy
                 </Typography>
               </Stack>
-              <Typography variant="h5" fontWeight={800}>
-                $ {currency(ventasHoy.total)}
-              </Typography>
+              <Typography variant="h5" fontWeight={800}>{usd(ventasHoy.total)}</Typography>
             </CardContent>
           </Card>
         </Grid>
@@ -851,9 +1057,7 @@ export default function VentasAlta({ onCreated }) {
                   Ventas hoy
                 </Typography>
               </Stack>
-              <Typography variant="h5" fontWeight={800}>
-                {ventasHoy.cantidad}
-              </Typography>
+              <Typography variant="h5" fontWeight={800}>{ventasHoy.cantidad}</Typography>
             </CardContent>
           </Card>
         </Grid>
@@ -866,9 +1070,7 @@ export default function VentasAlta({ onCreated }) {
                   Stock disponible
                 </Typography>
               </Stack>
-              <Typography variant="h5" fontWeight={800}>
-                {stockCount}
-              </Typography>
+              <Typography variant="h5" fontWeight={800}>{stockCount}</Typography>
             </CardContent>
           </Card>
         </Grid>
@@ -887,7 +1089,7 @@ export default function VentasAlta({ onCreated }) {
         ) : null}
       </Snackbar>
 
-      {/* Diálogo de confirmación */}
+      {/* Confirmación */}
       <Dialog
         open={confirmOpen}
         onClose={() => !submitting && setConfirmOpen(false)}
@@ -916,7 +1118,7 @@ export default function VentasAlta({ onCreated }) {
             );
           })}
           <Typography variant="subtitle2" sx={{ mt: 1.25 }}>
-            Total a cobrar: <strong>${currency(totalACobrar)}</strong>
+            Total a cobrar: <strong>{usd(totalACobrar)}</strong> (≈ {ars(totalACobrarARS)})
           </Typography>
         </DialogContent>
         <DialogActions>
